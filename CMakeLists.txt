@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.4 FATAL_ERROR)
+
+project(TdDownloader VERSION 1.0 LANGUAGES CXX)
+
+find_package(Td 1.8.0 REQUIRED)
+
+add_executable(tdjson_example tdjson_example.cpp)
+target_link_libraries(tdjson_example PRIVATE Td::TdJson)
+set_property(TARGET tdjson_example PROPERTY CXX_STANDARD 11)
+
+add_executable(td_downloader td_downloader.cpp)
+target_link_libraries(td_downloader PRIVATE Td::TdStatic)
+set_property(TARGET td_downloader PROPERTY CXX_STANDARD 14)
