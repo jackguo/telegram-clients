@@ -66,8 +66,8 @@ class TdExample {
         process_response(client_manager_->receive(10));
       } else {
         std::cout << "Enter action [q] quit [u] check for updates and request results [c] show chats [m <chat_id> "
-                     "<text>] send message [me] show self [l] logout: "
-                  << std::endl;
+        "<text>] send message [me] show self [l] logout: "
+        << std::endl;
         std::string line;
         std::getline(std::cin, line);
         std::istringstream ss(line);
@@ -103,7 +103,7 @@ class TdExample {
           ss.get();
           std::string text;
           std::getline(ss, text);
-
+          
           std::cout << "Sending message to chat " << chat_id << "..." << std::endl;
           auto send_message = td_api::make_object<td_api::sendMessage>();
           send_message->chat_id_ = chat_id;
@@ -111,7 +111,7 @@ class TdExample {
           message_content->text_ = td_api::make_object<td_api::formattedText>();
           message_content->text_->text_ = std::move(text);
           send_message->input_message_content_ = std::move(message_content);
-
+          
           send_query(std::move(send_message), {});
         } else if (action == "c") {
           std::cout << "Loading chat list..." << std::endl;
@@ -130,41 +130,55 @@ class TdExample {
           ss >> from_msg_id;
           ss >> offset;
           std::cout << "List messages from chat [" << chat_id << "] ..." << std::endl;
-          send_query(td_api::make_object<td_api::getChatHistory>(chat_id, from_msg_id, offset, 10, false), 
-            [this](Object object) {
-              if (object->get_id() == td_api::error::ID) {
-                auto&& e = td::move_tl_object_as<td_api::error>(object);
-                std::cout << "Error getting chat history: " << e->message_ << std::endl;
-                return;
-              }
-
-             if (object->get_id() == td_api::messages::ID) {
-               std::cout << "Correct response object" << std::endl;
-             }
-             //auto& messages = (static_cast<td_api::messages &>(*object)).messages_;
-             auto msptr = td::move_tl_object_as<td_api::messages>(object);
-             std::vector<td_api::object_ptr<td_api::message>> & messages = msptr->messages_;
-             std::cout << "Print messages: " << "total[" << messages.size() << "]" << std::endl;
-             for (auto mptr = messages.begin(); mptr != messages.end(); ++mptr) {
-                 print_msg(*mptr);
-               //std::cout << "message : " << m->get_id() << " " << m->content_->get_id() << std::endl;
+          send_query(td_api::make_object<td_api::getChatHistory>(chat_id, from_msg_id, offset, 10, false),
+                     [this](Object object) {
+            if (object->get_id() == td_api::error::ID) {
+              auto&& e = td::move_tl_object_as<td_api::error>(object);
+              std::cout << "Error getting chat history: " << e->message_ << std::endl;
+              return;
+            }
+            
+            if (object->get_id() == td_api::messages::ID) {
+              std::cout << "Correct response object" << std::endl;
+            }
+            //auto& messages = (static_cast<td_api::messages &>(*object)).messages_;
+            auto msptr = td::move_tl_object_as<td_api::messages>(object);
+            std::vector<td_api::object_ptr<td_api::message>> & messages = msptr->messages_;
+            std::cout << "Print messages: " << "total[" << messages.size() << "]" << std::endl;
+            for (auto mptr = messages.begin(); mptr != messages.end(); ++mptr) {
+              print_msg(*mptr);
+              //std::cout << "message : " << m->get_id() << " " << m->content_->get_id() << std::endl;
             }
           });
         } else if (action == "getMsg") {
-            std::int64_t chat_id, message_id;
-            ss >> chat_id;
-            ss >> message_id;
-            std::cout << "Show message [" << message_id << "] from chat [" << chat_id << "]..." << std::endl;
-            send_query(td_api::make_object<td_api::getMessage>(chat_id, message_id), [this](Object object) {
-                if (object->get_id() == td_api::error::ID) {
-                    auto&& e = td::move_tl_object_as<td_api::error>(object);
-                    std::cout << "Error showing message: " << e->message_ << std::endl;
-                    return;
-                }
-                
-                auto m = td::move_tl_object_as<td_api::message>(object);
-                print_msg(m);
-            });
+          std::int64_t chat_id, message_id;
+          ss >> chat_id;
+          ss >> message_id;
+          std::cout << "Show message [" << message_id << "] from chat [" << chat_id << "]..." << std::endl;
+          send_query(td_api::make_object<td_api::getMessage>(chat_id, message_id), [this](Object object) {
+            if (object->get_id() == td_api::error::ID) {
+              auto&& e = td::move_tl_object_as<td_api::error>(object);
+              std::cout << "Error showing message: " << e->message_ << std::endl;
+              return;
+            }
+            
+            auto m = td::move_tl_object_as<td_api::message>(object);
+            print_msg(m);
+          });
+        } else if (action == "d") {
+          std::int64_t file_id;
+          ss >> file_id;
+          std::cout << "Download file[" << file_id << "]..." << std::endl;
+          send_query(td_api::make_object<td_api::downloadFile>(file_id, 1, 0, 0, false), [this](Object object) {
+            if (object->get_id() == td_api::error::ID) {
+              auto&& e = td::move_tl_object_as<td_api::error>(object);
+              std::cout << "Error downloading file: " << e->message_ << std::endl;
+              return;
+            }
+            
+            auto f = td::move_tl_object_as<td_api::file>(object);
+            std::cout << "Downloading file: [" << f->local_->path_ << "] size: [" << f->size_ << "]." << std::endl;
+          });
         }
       }
     }
@@ -266,6 +280,13 @@ class TdExample {
                        std::cout << "Got message[" << update_new_message.message_->id_ << "]: [chat_id:" << chat_id << "] [from:" << sender_name << "] [" << text
                                  << "]" << std::endl;
                      },
+                     [this](td_api::updateFile &update_file) {
+                       auto& f = update_file.file_->local_;
+                       //std::cout << "File [" << f->path_ << "] status: is completed [" << f->is_downloading_completed_ << "]" << std::endl;
+                       if (f->is_downloading_completed_) {
+                         std::cout << "File [" << f->path_ << "] download completed." << std::endl;
+                       }
+                     },
                      [](auto &update) {}));
   }
     
@@ -280,7 +301,7 @@ class TdExample {
                 break;
             case td_api::messageVideo::ID: {
                 td_api::messageVideo & mv = static_cast<td_api::messageVideo &>(*ptr);
-                text = mv.caption_->text_ + " "  + mv.video_->file_name_;
+                text = mv.caption_->text_ + " "  + mv.video_->file_name_ + " " + std::to_string(mv.video_->video_->id_);
                 break;
             }
             case td_api::messageDocument::ID:
@@ -375,8 +396,8 @@ class TdExample {
               parameters->database_directory_ = "tdlib";
 //              parameters->use_message_database_ = true;
               parameters->use_secret_chats_ = true;
-              parameters->api_id_ = ;
-              parameters->api_hash_ = ;
+              parameters->api_id_ = 0;
+              parameters->api_hash_ = "";
               parameters->system_language_code_ = "en";
               parameters->device_model_ = "Desktop";
               parameters->application_version_ = "1.0";
