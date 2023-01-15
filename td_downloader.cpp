@@ -115,7 +115,7 @@ class TdExample {
           send_query(std::move(send_message), {});
         } else if (action == "c") {
           std::cout << "Loading chat list..." << std::endl;
-          send_query(td_api::make_object<td_api::getChats>(nullptr, 20), [this](Object object) {
+          send_query(td_api::make_object<td_api::getChats>(nullptr, 100), [this](Object object) {
             if (object->get_id() == td_api::error::ID) {
               return;
             }
@@ -141,14 +141,30 @@ class TdExample {
              if (object->get_id() == td_api::messages::ID) {
                std::cout << "Correct response object" << std::endl;
              }
-             auto&& messages = td::move_tl_object_as<td_api::messages>(object)->messages_;
-              
+             //auto& messages = (static_cast<td_api::messages &>(*object)).messages_;
+             auto msptr = td::move_tl_object_as<td_api::messages>(object);
+             std::vector<td_api::object_ptr<td_api::message>> & messages = msptr->messages_;
              std::cout << "Print messages: " << "total[" << messages.size() << "]" << std::endl;
              for (auto mptr = messages.begin(); mptr != messages.end(); ++mptr) {
-               auto m = mptr->get() ;
-               std::cout << "message : " << m->get_id() << " " << m->content_->get_id() << std::endl;
+                 print_msg(*mptr);
+               //std::cout << "message : " << m->get_id() << " " << m->content_->get_id() << std::endl;
             }
           });
+        } else if (action == "getMsg") {
+            std::int64_t chat_id, message_id;
+            ss >> chat_id;
+            ss >> message_id;
+            std::cout << "Show message [" << message_id << "] from chat [" << chat_id << "]..." << std::endl;
+            send_query(td_api::make_object<td_api::getMessage>(chat_id, message_id), [this](Object object) {
+                if (object->get_id() == td_api::error::ID) {
+                    auto&& e = td::move_tl_object_as<td_api::error>(object);
+                    std::cout << "Error showing message: " << e->message_ << std::endl;
+                    return;
+                }
+                
+                auto m = td::move_tl_object_as<td_api::message>(object);
+                print_msg(m);
+            });
         }
       }
     }
@@ -252,6 +268,35 @@ class TdExample {
                      },
                      [](auto &update) {}));
   }
+    
+  void print_msg_content(td_api::object_ptr<td_api::MessageContent> & ptr) {
+        std::string text;
+        switch (ptr->get_id()) {
+            case td_api::messageText::ID:
+                text = static_cast<td_api::messageText &>(*ptr).text_->text_;
+                break;
+            case td_api::messagePhoto::ID:
+                text = static_cast<td_api::messagePhoto &>(*ptr).caption_->text_;
+                break;
+            case td_api::messageVideo::ID: {
+                td_api::messageVideo & mv = static_cast<td_api::messageVideo &>(*ptr);
+                text = mv.caption_->text_ + " "  + mv.video_->file_name_;
+                break;
+            }
+            case td_api::messageDocument::ID:
+                text = static_cast<td_api::messageDocument &>(*ptr).document_->file_name_;
+                break;
+            default:
+                text = "unsupported: " + std::to_string(ptr->get_id());
+        }
+        std::cout << text;
+  }
+    
+    void print_msg(td_api::object_ptr<td_api::message> &ptr) {
+        std::cout << "msg[" << ptr->id_ << "] :";
+        print_msg_content(ptr->content_);
+        std::cout << std::endl;
+    }
 
   auto create_authentication_query_handler() {
     return [this, id = authentication_query_id_](Object object) {
@@ -328,10 +373,10 @@ class TdExample {
             [this](td_api::authorizationStateWaitTdlibParameters &) {
               auto parameters = td_api::make_object<td_api::tdlibParameters>();
               parameters->database_directory_ = "tdlib";
-              parameters->use_message_database_ = true;
+//              parameters->use_message_database_ = true;
               parameters->use_secret_chats_ = true;
-              parameters->api_id_ = 94575;
-              parameters->api_hash_ = "a3406de8d171bb422bb6ddf3bbd800e2";
+              parameters->api_id_ = ;
+              parameters->api_hash_ = ;
               parameters->system_language_code_ = "en";
               parameters->device_model_ = "Desktop";
               parameters->application_version_ = "1.0";
