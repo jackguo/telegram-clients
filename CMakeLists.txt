@@ -11,3 +11,7 @@ set_property(TARGET tdjson_example PROPERTY CXX_STANDARD 11)
 add_executable(td_downloader td_downloader.cpp)
 target_link_libraries(td_downloader PRIVATE Td::TdStatic)
 set_property(TARGET td_downloader PROPERTY CXX_STANDARD 14)
+
+add_executable(td_example td_example.cpp)
+target_link_libraries(td_example PRIVATE Td::TdStatic)
+set_property(TARGET td_example PROPERTY CXX_STANDARD 14)

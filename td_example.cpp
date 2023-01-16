@@ -175,25 +175,10 @@ class TdExample {
               std::cout << "Error downloading file: " << e->message_ << std::endl;
               return;
             }
-             
+            
             auto f = td::move_tl_object_as<td_api::file>(object);
             std::cout << "Downloading file: [" << f->local_->path_ << "] size: [" << f->size_ << "]." << std::endl;
           });
-        } else if (action == "ad") {
-          std::int64_t chat_id, starting_message_id;
-          std::int32_t limit;
-          ss >> chat_id;
-          ss >> starting_message_id;
-          ss >> limit;
-          std::cout << "Auto downloading from chat [" 
-            << chat_id << "], starting from message [" 
-            << starting_message_id << "]..." << std::endl;
-          if (starting_message_id == 0) {
-            //starting from the latest message
-            
-          } else {
-            auto_download(chat_id, starting_message_id, limit);
-          }
         }
       }
     }
@@ -277,7 +262,7 @@ class TdExample {
                        auto user_id = update_user.user_->id_;
                        users_[user_id] = std::move(update_user.user_);
                      },
-                     /*[this](td_api::updateNewMessage &update_new_message) {
+                     [this](td_api::updateNewMessage &update_new_message) {
                        auto chat_id = update_new_message.message_->chat_id_;
                        std::string sender_name;
                        td_api::downcast_call(*update_new_message.message_->sender_id_,
@@ -294,7 +279,7 @@ class TdExample {
                        }
                        std::cout << "Got message[" << update_new_message.message_->id_ << "]: [chat_id:" << chat_id << "] [from:" << sender_name << "] [" << text
                                  << "]" << std::endl;
-                     }, */
+                     },
                      [this](td_api::updateFile &update_file) {
                        auto& f = update_file.file_->local_;
                        //std::cout << "File [" << f->path_ << "] status: is completed [" << f->is_downloading_completed_ << "]" << std::endl;
@@ -305,73 +290,34 @@ class TdExample {
                      [](auto &update) {}));
   }
     
-  void print_msg_content(td_api::object_ptr<td_api::MessageContent> &ptr) {
-    std::string text;
-    switch (ptr->get_id()) {
-      case td_api::messageText::ID:
-        text = static_cast<td_api::messageText &>(*ptr).text_->text_;
-        break;
-      case td_api::messagePhoto::ID:
-        text = static_cast<td_api::messagePhoto &>(*ptr).caption_->text_;
-        break;
-      case td_api::messageVideo::ID: {
-        td_api::messageVideo &mv = static_cast<td_api::messageVideo &>(*ptr);
-        text = mv.caption_->text_ + " " + mv.video_->file_name_ + " " +
-               std::to_string(mv.video_->video_->id_);
-        break;
-      }
-      case td_api::messageDocument::ID:
-        text =
-            static_cast<td_api::messageDocument &>(*ptr).document_->file_name_;
-        break;
-      default:
-        text = "unsupported: " + std::to_string(ptr->get_id());
-    }
-    std::cout << text;
+  void print_msg_content(td_api::object_ptr<td_api::MessageContent> & ptr) {
+        std::string text;
+        switch (ptr->get_id()) {
+            case td_api::messageText::ID:
+                text = static_cast<td_api::messageText &>(*ptr).text_->text_;
+                break;
+            case td_api::messagePhoto::ID:
+                text = static_cast<td_api::messagePhoto &>(*ptr).caption_->text_;
+                break;
+            case td_api::messageVideo::ID: {
+                td_api::messageVideo & mv = static_cast<td_api::messageVideo &>(*ptr);
+                text = mv.caption_->text_ + " "  + mv.video_->file_name_ + " " + std::to_string(mv.video_->video_->id_);
+                break;
+            }
+            case td_api::messageDocument::ID:
+                text = static_cast<td_api::messageDocument &>(*ptr).document_->file_name_;
+                break;
+            default:
+                text = "unsupported: " + std::to_string(ptr->get_id());
+        }
+        std::cout << text;
   }
-
-  void print_msg(td_api::object_ptr<td_api::message> &ptr) {
-    std::cout << "msg[" << ptr->id_ << "] :";
-    print_msg_content(ptr->content_);
-    std::cout << std::endl;
-  }
-
-  void auto_download_from_last_msg(int64_t chat_id, int32_t limit,
-                                   int32_t retry) {
-    if (retry > 5) {
-      std::cout << "auto_download_from_last_msg: Max retry has exceeded, try "
-                   "later please"
-                << std::endl;
-    }
-
-    send_query(
-        td_api::make_object<td_api::getChatHistory>(chat_id, 0, 0, 1, false),
-        [this, chat_id, limit, retry](Object object) {
-          if (object->get_id() == td_api::error::ID) {
-            std::cout << "Error getting the last message from chat: "
-                      << td::move_tl_object_as<td_api::error>(object)->message_
-                      << std::endl;
-          }
-
-          auto messages = td::move_tl_object_as<td_api::messages>(object);
-          if (messages->messages_.size() < 1) {
-            std::cout << "0 message returned while retrieving the last message "
-                         "id, will have to try again"
-                      << std::endl;
-            auto_download_from_last_msg(chat_id, limit, retry + 1);
-          }
-
-          int64_t from_msg_id = messages->messages_.at(0)->id_;
-          auto_download(chat_id, from_msg_id, limit);
-        });
-  }
-
-  void auto_download(int64_t chat_id, int64_t from_message_id, int32_t limit) {
     
-  }
-
-  void do_download(int64_t chat_id, int64_t from_msg_id, int32_t limit) {
-  }
+    void print_msg(td_api::object_ptr<td_api::message> &ptr) {
+        std::cout << "msg[" << ptr->id_ << "] :";
+        print_msg_content(ptr->content_);
+        std::cout << std::endl;
+    }
 
   auto create_authentication_query_handler() {
     return [this, id = authentication_query_id_](Object object) {
