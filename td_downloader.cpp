@@ -16,6 +16,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <thread>
 
 // Simple single-threaded example of TDLib usage.
 // Real world programs should use separate thread for the user input.
@@ -190,7 +191,7 @@ class TdExample {
             << starting_message_id << "]..." << std::endl;
           if (starting_message_id == 0) {
             //starting from the latest message
-            
+            auto_download_from_last_msg(chat_id, limit, 0);
           } else {
             auto_download(chat_id, starting_message_id, limit);
           }
