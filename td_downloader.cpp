@@ -20,7 +20,7 @@
 #include <vector>
 #include <thread>
 #include <ctime>
-#include <mutex>
+#include <regex>
 
 // Simple single-threaded example of TDLib usage.
 // Real world programs should use separate thread for the user input.
@@ -136,7 +136,6 @@ class TdExample {
  private:
   using Object = td_api::object_ptr<td_api::Object>;
   std::unique_ptr<td::ClientManager> client_manager_;
-  std::mutex client_receive_mutex_;
   std::int32_t client_id_{0};
 
   td_api::object_ptr<td_api::AuthorizationState> authorization_state_;
@@ -146,7 +145,6 @@ class TdExample {
   std::uint64_t authentication_query_id_{0};
 
   std::map<std::uint64_t, std::function<void(Object)>> handlers_;
-  std::mutex handlers_mutex_;
 
   std::map<std::int64_t, td_api::object_ptr<td_api::user>> users_;
 
@@ -239,11 +237,12 @@ class TdExample {
     void do_download_if_video(const td_api::object_ptr<td_api::message> &mptr) {
       if (mptr->content_->get_id() == td_api::messageVideo::ID) {
         auto &msg_content = static_cast<const td_api::messageVideo &>(*mptr->content_);
-        std::string caption = msg_content.caption_->text_;
+        std::string caption = std::regex_replace(msg_content.caption_->text_, std::regex("\\s+"), " ");
+        int64_t msg_id = mptr->id_;
         tdExample.send_query(
             td::make_tl_object<td_api::downloadFile>(
                 msg_content.video_->video_->id_, 1, 0, 0, false),
-            [this, caption](Object object) {
+            [this, caption, msg_id](Object object) {
               if (this->tdExample.log_msg_if_error(object,
                                                "Error downloading file: ")) {
                 return;
@@ -251,7 +250,7 @@ class TdExample {
               int32_t id = static_cast<const td_api::file &>(*object).id_;
               log << "INFO: "
                   << "File [" << caption << "], id [" << id
-                  << "] downloading started..." << std::endl;
+                  << "], msg_id [" << msg_id <<  "] downloading started..." << std::endl;
               downloadingFiles.insert(id);
             });
       }
@@ -260,7 +259,7 @@ class TdExample {
 
     void process_responses(double timeout) {
       while (true) {
-        auto response = tdExample.syncronized_receive(timeout);
+        auto response = tdExample.client_manager_->receive(timeout);
         if (!response.object) {
           break;
         }
@@ -270,7 +269,6 @@ class TdExample {
           continue;
         }
 
-        std::lock_guard<std::mutex> lg(tdExample.handlers_mutex_);
         auto it = tdExample.handlers_.find(response.request_id);
         if (it != tdExample.handlers_.end()) {
           it->second(std::move(response.object));
@@ -309,8 +307,9 @@ class TdExample {
                 if (f->is_downloading_completed_) {
                   log << "INFO: File [" << f->path_ << "], id[" << id
                       << "] download completed." << std::endl;
-                  downloadingFiles.erase(id);
-                  ++downloaded;
+                  if (downloadingFiles.erase(id) == 1) {
+                    ++downloaded;
+                  }
                 }
               },
               [](auto &update) {}));
@@ -327,11 +326,6 @@ class TdExample {
     }
 
     return false;
-  }
-
-  td::ClientManager::Response syncronized_receive(double timeout) {
-    std::lock_guard<std::mutex> lg(client_receive_mutex_);
-    return client_manager_->receive(timeout);
   }
 
   void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler) {
