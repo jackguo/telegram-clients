@@ -174,11 +174,12 @@ class TdExample {
     int32_t limit;
     int32_t downloaded{0};
     std::unordered_set<int32_t> downloadingFiles;
+    std::unordered_set<int32_t> downloadedFiles;
     TdExample& tdExample;
     std::ofstream log;
 
     void auto_download() {
-      while (downloaded + downloadingFiles.size() < limit) {
+      while (downloadedFiles.size() + downloadingFiles.size() < limit) {
         if (downloadingFiles.empty()) {
           if (last_msg_id == 0) {
             tdExample.send_query(
@@ -236,23 +237,30 @@ class TdExample {
 
     void do_download_if_video(const td_api::object_ptr<td_api::message> &mptr) {
       if (mptr->content_->get_id() == td_api::messageVideo::ID) {
-        auto &msg_content = static_cast<const td_api::messageVideo &>(*mptr->content_);
-        std::string caption = std::regex_replace(msg_content.caption_->text_, std::regex("\\s+"), " ");
+        auto &msg_content =
+            static_cast<const td_api::messageVideo &>(*mptr->content_);
+        std::string caption = std::regex_replace(msg_content.caption_->text_,
+                                                 std::regex("\\s+"), " ");
         int64_t msg_id = mptr->id_;
-        tdExample.send_query(
-            td::make_tl_object<td_api::downloadFile>(
-                msg_content.video_->video_->id_, 1, 0, 0, false),
-            [this, caption, msg_id](Object object) {
-              if (this->tdExample.log_msg_if_error(object,
-                                               "Error downloading file: ")) {
-                return;
-              }
-              int32_t id = static_cast<const td_api::file &>(*object).id_;
-              log << "INFO: "
-                  << "File [" << caption << "], id [" << id
-                  << "], msg_id [" << msg_id <<  "] downloading started..." << std::endl;
-              downloadingFiles.insert(id);
-            });
+        int32_t file_id = msg_content.video_->video_->id_;
+
+        if (downloadedFiles.find(file_id) == downloadedFiles.end() 
+            && downloadingFiles.find(file_id) == downloadingFiles.end()) {
+          tdExample.send_query(
+              td::make_tl_object<td_api::downloadFile>(
+                  file_id, 1, 0, 0, false),
+              [this, caption, msg_id](Object object) {
+                if (this->tdExample.log_msg_if_error(
+                        object, "Error downloading file: ")) {
+                  return;
+                }
+                int32_t id = static_cast<const td_api::file &>(*object).id_;
+                log << "INFO: "
+                    << "File [" << caption << "], id [" << id << "], msg_id ["
+                    << msg_id << "] downloading started..." << std::endl;
+                downloadingFiles.insert(id);
+              });
+        }
       }
       last_msg_id = mptr->id_;
     }
@@ -308,7 +316,7 @@ class TdExample {
                   log << "INFO: File [" << f->path_ << "], id[" << id
                       << "] download completed." << std::endl;
                   if (downloadingFiles.erase(id) == 1) {
-                    ++downloaded;
+                    downloadedFiles.insert(id);
                   }
                 }
               },
