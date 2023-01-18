@@ -530,7 +530,7 @@ class TdExample {
               parameters->system_language_code_ = "en";
               parameters->device_model_ = "Desktop";
               parameters->application_version_ = "1.0";
-              parameters->enable_storage_optimizer_ = true;
+              parameters->enable_storage_optimizer_ = false;
               send_query(td_api::make_object<td_api::setTdlibParameters>(std::move(parameters)),
                          create_authentication_query_handler());
             }));
