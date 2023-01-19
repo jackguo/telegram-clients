@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <functional>
 #include <iostream>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -396,8 +397,12 @@ class TdExample {
               parameters->database_directory_ = "tdlib";
 //              parameters->use_message_database_ = true;
               parameters->use_secret_chats_ = true;
-              parameters->api_id_ = 0;
-              parameters->api_hash_ = "";
+              std::ifstream ini("./api.ini");
+              if (ini.is_open()) {
+                ini >> parameters->api_id_;
+                ini >> parameters->api_hash_;
+                ini.close();
+              }              
               parameters->system_language_code_ = "en";
               parameters->device_model_ = "Desktop";
               parameters->application_version_ = "1.0";

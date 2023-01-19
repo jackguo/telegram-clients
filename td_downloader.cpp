@@ -172,7 +172,6 @@ class TdExample {
     int64_t chat_id;
     int64_t last_msg_id;  // last requested msg id
     int32_t limit;
-    int32_t downloaded{0};
     std::unordered_set<int32_t> downloadingFiles;
     std::unordered_set<int32_t> downloadedFiles;
     TdExample& tdExample;
@@ -206,7 +205,7 @@ class TdExample {
                   do_download_if_video(msg);
                 });
           } else {
-            int32_t num = std::min(50, limit - downloaded);
+            int32_t num = std::min(50, limit - static_cast<int32_t>(downloadedFiles.size()));
             tdExample.send_query(
                 td_api::make_object<td_api::getChatHistory>(
                     chat_id, last_msg_id, 0, num, false),
@@ -255,7 +254,7 @@ class TdExample {
                   return;
                 }
                 int32_t id = static_cast<const td_api::file &>(*object).id_;
-                log << "INFO: "
+                log << get_current_timestamp() << " INFO: "
                     << "File [" << caption << "], id [" << id << "], msg_id ["
                     << msg_id << "] downloading started..." << std::endl;
                 downloadingFiles.insert(id);
@@ -313,14 +312,23 @@ class TdExample {
                 // std::cout << "File [" << f->path_ << "] status: is completed
                 // [" << f->is_downloading_completed_ << "]" << std::endl;
                 if (f->is_downloading_completed_) {
-                  log << "INFO: File [" << f->path_ << "], id[" << id
+                  log << get_current_timestamp() << " INFO: File [" << f->path_ << "], id[" << id
                       << "] download completed." << std::endl;
                   if (downloadingFiles.erase(id) == 1) {
                     downloadedFiles.insert(id);
+                  } else {
+                    log << get_current_timestamp() << " WARN: Unexpected downloading... file id[" << id << "]." << std::endl;
                   }
                 }
               },
               [](auto &update) {}));
+    }
+
+    std::string get_current_timestamp() {
+      char res[20];
+      time_t t = time(nullptr);
+      std::strftime(res, sizeof(res), "%FT%T", localtime(&t));
+      return std::string(res);
     }
   };
 
