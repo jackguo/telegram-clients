@@ -178,7 +178,7 @@ class TdExample {
     std::ofstream log;
 
     void auto_download() {
-      while (downloadedFiles.size() + downloadingFiles.size() < limit) {
+      while (downloadedFiles.size() < limit) {
         if (downloadingFiles.empty()) {
           if (last_msg_id == 0) {
             tdExample.send_query(
