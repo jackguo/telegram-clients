@@ -284,7 +284,7 @@ class TdExample {
       }
     }
 
-    void process_update(td_api::object_ptr<td_api::Object> update) {
+    void process_update(Object update) {
       td_api::downcast_call(
           *update,
           overloaded(
@@ -383,7 +383,7 @@ class TdExample {
     return it->second;
   }
 
-  void process_update(td_api::object_ptr<td_api::Object> update) {
+  void process_update(Object update) {
     td_api::downcast_call(
         *update, overloaded(
                      [this](td_api::updateAuthorizationState &update_authorization_state) {

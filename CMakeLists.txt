@@ -8,8 +8,11 @@ add_executable(tdjson_example tdjson_example.cpp)
 target_link_libraries(tdjson_example PRIVATE Td::TdJson)
 set_property(TARGET tdjson_example PROPERTY CXX_STANDARD 11)
 
+include_directories($TdDownloader_SOURCE_DIR/inc)
 add_executable(td_downloader td_downloader.cpp)
-target_link_libraries(td_downloader PRIVATE Td::TdStatic)
+add_library(TaskApi task_api.cpp)
+target_link_libraries(TaskApi PRIVATE Td::TdStatic)
+target_link_libraries(td_downloader PRIVATE Td::TdStatic TaskApi)
 set_property(TARGET td_downloader PROPERTY CXX_STANDARD 14)
 
 add_executable(td_example td_example.cpp)
