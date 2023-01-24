@@ -12,6 +12,7 @@
 #include <td/telegram/td_api.hpp>
 #include <unordered_set>
 #include <vector>
+#include <thread>
 
 // overloaded
 namespace detail {

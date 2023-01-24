@@ -2,7 +2,6 @@
 
 #include <regex>
 #include <sstream>
-#include <thread>
 
 using namespace task_api;
 
@@ -16,8 +15,13 @@ ClientWrapper::ClientWrapper() {
 }
 
 std::uint64_t ClientWrapper::next_query_id() {
-  std::lock_guard<std::mutex> lock(query_id_lock_);
-  return ++current_query_id_;
+  try {
+    std::lock_guard<std::mutex> lock(query_id_lock_);
+    return ++current_query_id_;
+  } catch (std::exception e) {
+    std::cout << "Exception! " << e.what() << std::endl;
+    throw(-1);
+  }
 }
 
 void ClientWrapper::send_query(std::uint64_t query_id,
