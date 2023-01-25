@@ -78,6 +78,8 @@ class ClientWrapper : public Task {
   std::uint64_t current_query_id_{0};
   std::uint64_t authentication_query_id_{0};
   std::mutex query_id_lock_;
+  std::mutex response_registry_lock_;
+  std::mutex update_registry_lock_;
   std::map<std::uint64_t, TdTask*> response_registry_;
   std::map<std::int32_t, TdTask*> update_registry_;
   std::map<std::uint64_t, std::function<void(Object)>> handlers_;
@@ -117,14 +119,11 @@ class TdTask : public Task {
 
   void send_query(td_api::object_ptr<td_api::Function> f,
                   std::function<void(Object)> handler) {
-    // std::cout << "send query!!!" << std::endl;
     std::uint64_t qryid = client_ptr_->next_query_id();
-    // std::cout << "query id acquired" << qryid << std::endl;
     if (handler) {
       handlers_.emplace(qryid, handler);
     }
 
-    // std::cout << "before send query" << std::endl;
     client_ptr_->send_query(qryid, std::move(f), this);
   }
 };
@@ -172,7 +171,6 @@ class TdMain : public TdTask {
   std::map<std::int64_t, std::string> chat_title_;
   std::vector<std::thread> workers_;
   std::vector<Task*> task_handles_;
-  ClientWrapper* client_ptr_;
 
   void process_update(Object& update);
   void terminate();

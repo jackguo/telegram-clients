@@ -15,24 +15,20 @@ ClientWrapper::ClientWrapper() {
 }
 
 std::uint64_t ClientWrapper::next_query_id() {
-  try {
-    std::lock_guard<std::mutex> lock(query_id_lock_);
-    return ++current_query_id_;
-  } catch (std::exception e) {
-    std::cout << "Exception! " << e.what() << std::endl;
-    throw(-1);
-  }
+  std::lock_guard<std::mutex> lock(query_id_lock_);
+  return ++current_query_id_;
 }
 
 void ClientWrapper::send_query(std::uint64_t query_id,
                                td_api::object_ptr<td_api::Function> f,
                                TdTask* task) {
-  //std::cout << "send_query" << std::endl;
+  std::lock_guard<std::mutex> lock(response_registry_lock_);
   response_registry_.emplace(query_id, task);
   client_manager_->send(client_id_, query_id, std::move(f));
 }
 
 void ClientWrapper::subscribe_update(std::int32_t type_id, TdTask* task) {
+  std::lock_guard<std::mutex> lock(update_registry_lock_);
   update_registry_.emplace(type_id, task);
 }
 
@@ -40,7 +36,7 @@ void ClientWrapper::run() {
   while (!terminate_) {
     receive_and_dispatch();
     if (are_authorized_) {
-      std::this_thread::sleep_for(std::chrono::minutes(3));
+      std::this_thread::sleep_for(std::chrono::seconds(10));
     }
   }
 }
@@ -49,6 +45,7 @@ void ClientWrapper::receive_and_dispatch() {
   auto response = client_manager_->receive(0);
   while (response.object) {
     if (response.request_id == 0) {
+      std::lock_guard<std::mutex> lock(update_registry_lock_);
       auto iterator = update_registry_.find(response.object->get_id());
       if (iterator != update_registry_.end()) {
         iterator->second->accept_response(std::move(response));
@@ -56,9 +53,11 @@ void ClientWrapper::receive_and_dispatch() {
         process_update(std::move(response.object));
       }
     } else {
+      std::lock_guard<std::mutex> lock(response_registry_lock_);
       auto iterator = response_registry_.find(response.request_id);
       if (iterator != response_registry_.end()) {
         iterator->second->accept_response(std::move(response));
+        response_registry_.erase(iterator);
       } else {
         auto it2 = handlers_.find(response.request_id);
         if (it2 != handlers_.end()) {
@@ -279,7 +278,7 @@ void Downloader::auto_download() {
   }
 
   if (terminate_ && !downloadingFiles.empty()) {
-    for (auto file_id : downloadedFiles) {
+    for (auto file_id : downloadingFiles) {
       send_query(
           td_api::make_object<td_api::cancelDownloadFile>(file_id, false), {});
     }
