@@ -101,21 +101,11 @@ class TdTask : public Task {
  protected:
   ClientWrapper* client_ptr_;
   std::map<std::uint64_t, std::function<void(Object)>> handlers_;
-  std::deque<td::ClientManager::Response> response_queue_;
+  std::deque<td::ClientManager::Response> responses_;
   std::mutex queue_lock_;
 
   void process_responses();
   virtual void process_update(Object& update) = 0;
-
-  bool log_msg_if_error(const Object& object, std::string&& msg) {
-    if (object->get_id() == td_api::error::ID) {
-      std::cout << msg << static_cast<const td_api::error&>(*object).message_
-                << std::endl;
-      return true;
-    }
-
-    return false;
-  }
 
   void send_query(td_api::object_ptr<td_api::Function> f,
                   std::function<void(Object)> handler) {
@@ -135,28 +125,39 @@ class Downloader : public TdTask {
   Downloader(int64_t chat, int64_t msg, int32_t limit, int32_t direction,
              ClientWrapper* client_ptr);
 
-  ~Downloader() { log.close(); }
+  ~Downloader() { log_.close(); }
 
   void run() { auto_download(); }
 
   void process_update(Object& update);
 
  private:
-  int64_t chat_id;
-  int64_t last_msg_id;  // last requested msg id
-  int32_t limit;
-  std::unordered_set<int32_t> downloadingFiles;
-  std::unordered_set<int32_t> downloadedFiles;
-  std::ofstream log;
-  int32_t direction{1};
+  int64_t chat_id_;
+  int64_t last_msg_id_;  // last requested msg id
+  int32_t limit_;
+  std::unordered_set<int32_t> downloading_files_;
+  std::unordered_set<int32_t> downloaded_files_;
+  std::ofstream log_;
+  int32_t direction_{1};
 
   void auto_download();
+  void retrieve_more_msg();
   void do_download_if_video(const td_api::object_ptr<td_api::message>& mptr);
   std::string get_current_timestamp() {
     char res[20];
     time_t t = time(nullptr);
     std::strftime(res, sizeof(res), "%FT%T", localtime(&t));
     return std::string(res);
+  }
+
+  bool log_msg_if_error(const Object& object, std::string&& msg) {
+    if (object->get_id() == td_api::error::ID) {
+      log_ << "ERROR: " << msg << static_cast<const td_api::error&>(*object).message_
+        << std::endl;
+      return true;
+    }
+
+    return false;
   }
 };
 

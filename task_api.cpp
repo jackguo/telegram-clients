@@ -214,64 +214,20 @@ void ClientWrapper::send_authentication_query(
 Downloader::Downloader(int64_t chat, int64_t msg, int32_t limit,
                        int32_t direction, ClientWrapper* client_ptr)
     : TdTask(client_ptr),
-      chat_id(chat),
-      last_msg_id(msg),
-      limit(limit),
-      direction(direction) {
+      chat_id_(chat),
+      last_msg_id_(msg),
+      limit_(limit),
+      direction_(direction) {
   std::time_t now = std::time(nullptr);
-  log = std::ofstream("tdlib/" + std::to_string(now) + "-downloading.log",
+  log_ = std::ofstream("tdlib/" + std::to_string(now) + "-downloading.log",
                       std::ios_base::out | std::ios_base::app);
   client_ptr_->subscribe_update(td_api::updateFile::ID, this);
 }
 
 void Downloader::auto_download() {
-  while (downloadedFiles.size() < limit && !terminate_) {
-    if (downloadingFiles.empty()) {
-      if (last_msg_id == 0) {
-        send_query(
-            td_api::make_object<td_api::getChatHistory>(chat_id, 0, 0, 1,
-                                                        false),
-            [this](Object object) {
-              if (this->log_msg_if_error(
-                      object, "Error getting the last message from chat: ")) {
-                return;
-              }
-
-              auto messages = td::move_tl_object_as<td_api::messages>(object);
-              if (messages->messages_.size() < 1) {
-                std::cout << "0 message returned while retrieving the last "
-                             "message "
-                             "id, will have to try again"
-                          << std::endl;
-                return;
-              }
-
-              auto& msg = messages->messages_.at(0);
-              do_download_if_video(msg);
-            });
-      } else {
-        int32_t num =
-            std::min(5, limit - static_cast<int32_t>(downloadedFiles.size()));
-        send_query(td_api::make_object<td_api::getChatHistory>(
-                       chat_id, last_msg_id, 0, num, false),
-                   [this](Object object) {
-                     if (this->log_msg_if_error(
-                             object,
-                             "Error getting messages from chat(will retry "
-                             "later): ")) {
-                       return;
-                     }
-
-                     auto messages =
-                         td::move_tl_object_as<td_api::messages>(object);
-                     for (auto m = messages->messages_.begin();
-                          m != messages->messages_.end(); ++m) {
-                       do_download_if_video(*m);
-                     }
-                   });
-      }
-      std::this_thread::sleep_for(std::chrono::seconds(20));
-      process_responses();
+  while (downloaded_files_.size() < limit_ && !terminate_) {
+    if (handlers_.empty() && downloading_files_.empty()) {
+      retrieve_more_msg();
     }
 
     // waiting for download
@@ -279,14 +235,59 @@ void Downloader::auto_download() {
     process_responses();
   }
 
-  if (terminate_ && !downloadingFiles.empty()) {
-    for (auto file_id : downloadingFiles) {
-      log << "WARN: Cancel downloading file id[" << file_id << "]." << std::endl;
+  if (!downloading_files_.empty()) {
+    for (auto file_id : downloading_files_) {
+      log_ << "WARN: Cancel downloading file id[" << file_id << "]." << std::endl;
       send_query(
-          td_api::make_object<td_api::cancelDownloadFile>(file_id, false), {});
+        td_api::make_object<td_api::cancelDownloadFile>(file_id, false), {});
     }
+  }
 
-    log << "INFO: Downloader terminating... total downloaded files: [" << downloadedFiles.size() << "]" << std::endl;
+  log_ << "INFO: Downloader exiting... total downloaded files: [" << downloaded_files_.size() << "]" << std::endl;
+}
+
+void Downloader::retrieve_more_msg() {
+  if (last_msg_id_ == 0) {
+    send_query(
+        td_api::make_object<td_api::getChatHistory>(chat_id_, 0, 0, 1, false),
+        [this](Object object) {
+          if (this->log_msg_if_error(
+                  object, "Failed to get the last message from chat: ")) {
+            return;
+          }
+
+          auto messages = td::move_tl_object_as<td_api::messages>(object);
+          if (messages->messages_.size() < 1) {
+            log_ << "ERROR: 0 message returned while retrieving the last "
+                         "message "
+                         "id, will have to try again"
+                      << std::endl;
+            return;
+          }
+
+          auto& msg = messages->messages_.at(0);
+          do_download_if_video(msg);
+        });
+  } else {
+    int32_t num =
+        std::min(5, limit_ - static_cast<int32_t>(downloaded_files_.size()));
+    send_query(td_api::make_object<td_api::getChatHistory>(chat_id_, last_msg_id_,
+                                                           0, num, false),
+               [this](Object object) {
+                 if (this->log_msg_if_error(
+                         object,
+                         "Failed to get messages from chat(will retry "
+                         "later): ")) {
+                   return;
+                 }
+
+                 auto messages =
+                     td::move_tl_object_as<td_api::messages>(object);
+                 for (auto m = messages->messages_.begin();
+                      m != messages->messages_.end(); ++m) {
+                   do_download_if_video(*m);
+                 }
+               });
   }
 }
 
@@ -300,23 +301,23 @@ void Downloader::do_download_if_video(
     int64_t msg_id = mptr->id_;
     int32_t file_id = msg_content.video_->video_->id_;
 
-    if (downloadedFiles.find(file_id) == downloadedFiles.end() &&
-        downloadingFiles.find(file_id) == downloadingFiles.end()) {
+    if (downloaded_files_.find(file_id) == downloaded_files_.end() &&
+        downloading_files_.find(file_id) == downloading_files_.end()) {
       send_query(
           td::make_tl_object<td_api::downloadFile>(file_id, 1, 0, 0, false),
           [this, caption, msg_id](Object object) {
-            if (this->log_msg_if_error(object, "Error downloading file: ")) {
+            if (this->log_msg_if_error(object, "Failed to start file downloading: ")) {
               return;
             }
             int32_t id = static_cast<const td_api::file&>(*object).id_;
-            log << get_current_timestamp() << " INFO: "
+            log_ << get_current_timestamp() << " INFO: "
                 << "File [" << caption << "], id [" << id << "], msg_id ["
                 << msg_id << "] downloading started..." << std::endl;
-            downloadingFiles.insert(id);
+            downloading_files_.insert(id);
           });
     }
   }
-  last_msg_id = mptr->id_;
+  last_msg_id_ = mptr->id_;
 }
 
 void Downloader::process_update(Object& update) {
@@ -329,13 +330,13 @@ void Downloader::process_update(Object& update) {
                      // completed
                      // [" << f->is_downloading_completed_ << "]" << std::endl;
                      if (f->is_downloading_completed_) {
-                       log << get_current_timestamp() << " INFO: File ["
+                       log_ << get_current_timestamp() << " INFO: File ["
                            << f->path_ << "], id[" << id
                            << "] download completed." << std::endl;
-                       if (downloadingFiles.erase(id) == 1) {
-                         downloadedFiles.insert(id);
+                       if (downloading_files_.erase(id) == 1) {
+                         downloaded_files_.insert(id);
                        } else {
-                         log << get_current_timestamp()
+                         log_ << get_current_timestamp()
                              << " WARN: Unexpected downloading... file id["
                              << id << "]." << std::endl;
                        }
@@ -348,13 +349,13 @@ TdTask::TdTask(ClientWrapper* client_ptr) : client_ptr_(client_ptr) {}
 
 void TdTask::accept_response(td::ClientManager::Response response) {
   std::lock_guard<std::mutex> lock(queue_lock_);
-  response_queue_.push_back(std::move(response));
+    responses_.push_back(std::move(response));
 }
 
 void TdTask::process_responses() {
   std::lock_guard<std::mutex> lock(queue_lock_);
-  while (!response_queue_.empty()) {
-    td::ClientManager::Response& res = response_queue_.at(0);
+  while (!responses_.empty()) {
+    td::ClientManager::Response& res = responses_.at(0);
     if (res.request_id == 0) {
       process_update(res.object);
     } else {
@@ -364,7 +365,7 @@ void TdTask::process_responses() {
         handlers_.erase(pair);
       }
     }
-    response_queue_.pop_front();
+    responses_.pop_front();
   }
 }
 
