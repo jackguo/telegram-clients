@@ -29,6 +29,7 @@ void ClientWrapper::send_query(std::uint64_t query_id,
 
 void ClientWrapper::subscribe_update(std::int32_t type_id, TdTask* task) {
   std::lock_guard<std::mutex> lock(update_registry_lock_);
+  update_registry_.erase(type_id);
   update_registry_.emplace(type_id, task);
 }
 
@@ -250,7 +251,7 @@ void Downloader::auto_download() {
             });
       } else {
         int32_t num =
-            std::min(50, limit - static_cast<int32_t>(downloadedFiles.size()));
+            std::min(5, limit - static_cast<int32_t>(downloadedFiles.size()));
         send_query(td_api::make_object<td_api::getChatHistory>(
                        chat_id, last_msg_id, 0, num, false),
                    [this](Object object) {
@@ -269,19 +270,23 @@ void Downloader::auto_download() {
                      }
                    });
       }
+      std::this_thread::sleep_for(std::chrono::seconds(20));
       process_responses();
     }
 
     // waiting for download
-    std::this_thread::sleep_for(std::chrono::minutes(3));
+    std::this_thread::sleep_for(std::chrono::minutes(2));
     process_responses();
   }
 
   if (terminate_ && !downloadingFiles.empty()) {
     for (auto file_id : downloadingFiles) {
+      log << "WARN: Cancel downloading file id[" << file_id << "]." << std::endl;
       send_query(
           td_api::make_object<td_api::cancelDownloadFile>(file_id, false), {});
     }
+
+    log << "INFO: Downloader terminating... total downloaded files: [" << downloadedFiles.size() << "]" << std::endl;
   }
 }
 
@@ -364,21 +369,44 @@ void TdTask::process_responses() {
 }
 
 void TdMain::process_update(Object& update) {
-  td_api::downcast_call(*update,
-                        overloaded(
-                            [this](td_api::updateNewChat& update_new_chat) {
-                              chat_title_[update_new_chat.chat_->id_] =
-                                  update_new_chat.chat_->title_;
-                            },
-                            [this](td_api::updateChatTitle& update_chat_title) {
-                              chat_title_[update_chat_title.chat_id_] =
-                                  update_chat_title.title_;
-                            },
-                            [this](td_api::updateUser& update_user) {
-                              auto user_id = update_user.user_->id_;
-                              users_[user_id] = std::move(update_user.user_);
-                            },
-                            [](auto& update) {}));
+  td_api::downcast_call(
+      *update,
+      overloaded(
+          [this](td_api::updateNewChat& update_new_chat) {
+            chat_title_[update_new_chat.chat_->id_] =
+                update_new_chat.chat_->title_;
+          },
+          [this](td_api::updateChatTitle& update_chat_title) {
+            chat_title_[update_chat_title.chat_id_] = update_chat_title.title_;
+          },
+          [this](td_api::updateUser& update_user) {
+            auto user_id = update_user.user_->id_;
+            users_[user_id] = std::move(update_user.user_);
+          },
+          [this](td_api::updateNewMessage& update_new_message) {
+            auto chat_id = update_new_message.message_->chat_id_;
+            std::string sender_name;
+            td_api::downcast_call(
+                *update_new_message.message_->sender_id_,
+                overloaded(
+                    [this, &sender_name](td_api::messageSenderUser& user) {
+                      sender_name = get_user_name(user.user_id_);
+                    },
+                    [this, &sender_name](td_api::messageSenderChat& chat) {
+                      sender_name = get_chat_title(chat.chat_id_);
+                    }));
+            std::string text;
+            if (update_new_message.message_->content_->get_id() ==
+                td_api::messageText::ID) {
+              text = static_cast<td_api::messageText&>(
+                         *update_new_message.message_->content_)
+                         .text_->text_;
+            }
+            std::cout << "Got message[" << update_new_message.message_->id_
+                      << "]: [chat_id:" << chat_id << "] [from:" << sender_name
+                      << "] [" << text << "]" << std::endl;
+          },
+          [](auto& update) {}));
 }
 
 TdMain::TdMain() : TdTask(nullptr) {
@@ -387,6 +415,7 @@ TdMain::TdMain() : TdTask(nullptr) {
   client_ptr_->subscribe_update(td_api::updateNewChat::ID, this);
   client_ptr_->subscribe_update(td_api::updateChatTitle::ID, this);
   client_ptr_->subscribe_update(td_api::updateUser::ID, this);
+  client_ptr_->subscribe_update(td_api::updateNewMessage::ID, this);
 
   launch_task(client_ptr_);
 }

@@ -206,5 +206,21 @@ class TdMain : public TdTask {
     print_msg_content(ptr->content_);
     std::cout << std::endl;
   }
+
+  std::string get_user_name(std::int64_t user_id) const {
+    auto it = users_.find(user_id);
+    if (it == users_.end()) {
+      return "unknown user";
+    }
+    return it->second->first_name_ + " " + it->second->last_name_;
+  }
+
+  std::string get_chat_title(std::int64_t chat_id) const {
+    auto it = chat_title_.find(chat_id);
+    if (it == chat_title_.end()) {
+      return "unknown chat";
+    }
+    return it->second;
+  }
 };
 }  // namespace task_api
