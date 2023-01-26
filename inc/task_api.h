@@ -139,10 +139,13 @@ class Downloader : public TdTask {
   std::unordered_set<int32_t> downloaded_files_;
   std::ofstream log_;
   int32_t direction_{1};
+  const static int32_t nightModeLimit = 5;
+  const static int32_t daytimeModeLimit = 2;
 
   void auto_download();
   void retrieve_more_msg();
   void do_download_if_video(const td_api::object_ptr<td_api::message>& mptr);
+  int32_t get_concurrent_limit();
   std::string get_current_timestamp() {
     char res[20];
     time_t t = time(nullptr);

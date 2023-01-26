@@ -270,7 +270,7 @@ void Downloader::retrieve_more_msg() {
         });
   } else {
     int32_t num =
-        std::min(5, limit_ - static_cast<int32_t>(downloaded_files_.size()));
+        std::min(get_concurrent_limit(), limit_ - static_cast<int32_t>(downloaded_files_.size()));
     send_query(td_api::make_object<td_api::getChatHistory>(chat_id_, last_msg_id_,
                                                            0, num, false),
                [this](Object object) {
@@ -343,6 +343,16 @@ void Downloader::process_update(Object& update) {
                      }
                    },
                    [](auto& update) {}));
+}
+
+int32_t Downloader::get_concurrent_limit() {
+  time_t t = time(nullptr);
+  int32_t hour = localtime(&t)->tm_hour;
+  if (hour < 6) {
+    return nightModeLimit;
+  } else {
+    return daytimeModeLimit;
+  }
 }
 
 TdTask::TdTask(ClientWrapper* client_ptr) : client_ptr_(client_ptr) {}
