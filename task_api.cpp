@@ -222,15 +222,21 @@ Downloader::Downloader(int64_t chat, int64_t msg, int32_t limit,
   log_ = std::ofstream("tdlib/" + std::to_string(now) + "-downloading.log",
                       std::ios_base::out | std::ios_base::app);
   client_ptr_->subscribe_update(td_api::updateFile::ID, this);
+  if (direction_ < 0 && limit_ == 0) {
+    limit_ = INT_MAX;
+  }
 }
 
 void Downloader::auto_download() {
   while (downloaded_files_.size() < limit_ && !terminate_) {
     if (handlers_.empty() && downloading_files_.empty()) {
+      if (up_to_date_) {
+        break;
+      }
       retrieve_more_msg();
     }
 
-    // waiting for download
+    // waiting for download/responses
     std::this_thread::sleep_for(std::chrono::minutes(2));
     process_responses();
   }
@@ -270,24 +276,49 @@ void Downloader::retrieve_more_msg() {
         });
   } else {
     int32_t num =
-        std::min(get_concurrent_limit(), limit_ - static_cast<int32_t>(downloaded_files_.size()));
-    send_query(td_api::make_object<td_api::getChatHistory>(chat_id_, last_msg_id_,
-                                                           0, num, false),
-               [this](Object object) {
-                 if (this->log_msg_if_error(
-                         object,
-                         "Failed to get messages from chat(will retry "
-                         "later): ")) {
-                   return;
-                 }
+        std::min(get_concurrent_limit(),
+                 limit_ - static_cast<int32_t>(downloaded_files_.size()));
+    if (direction_ > 0) {
+      send_query(td_api::make_object<td_api::getChatHistory>(
+                     chat_id_, last_msg_id_, 0, num, false),
+                 [this](Object object) {
+                   if (this->log_msg_if_error(
+                           object,
+                           "Failed to get messages from chat(will retry "
+                           "later): ")) {
+                     return;
+                   }
 
-                 auto messages =
-                     td::move_tl_object_as<td_api::messages>(object);
-                 for (auto m = messages->messages_.begin();
-                      m != messages->messages_.end(); ++m) {
-                   do_download_if_video(*m);
-                 }
-               });
+                   auto messages =
+                       td::move_tl_object_as<td_api::messages>(object);
+                   for (auto m = messages->messages_.begin();
+                        m != messages->messages_.end(); ++m) {
+                     do_download_if_video(*m);
+                   }
+                 });
+    } else {
+      ++num;
+      send_query(td_api::make_object<td_api::getChatHistory>(
+                     chat_id_, last_msg_id_, -num, num, false),
+                 [this, num](Object object) {
+                   if (this->log_msg_if_error(
+                           object,
+                           "Failed to get messages from chat(will retry "
+                           "later): ")) {
+                     return;
+                   }
+                   auto messages =
+                       td::move_tl_object_as<td_api::messages>(object);
+                   if (messages->messages_.size() < num) {
+                     up_to_date_ = true;
+                   }
+
+                   for (auto m = ++messages->messages_.rbegin();
+                        m != messages->messages_.rend(); ++m) {
+                     do_download_if_video(*m);
+                   }
+                 });
+    }
   }
 }
 
@@ -491,15 +522,16 @@ void TdMain::run() {
                      }
                    });
       } else if (action == "ls") {
-        std::int64_t chat_id, from_msg_id, offset;
+        std::int64_t chat_id, from_msg_id, offset, limit;
         ss >> chat_id;
         ss >> from_msg_id;
         ss >> offset;
+        ss >> limit;
         std::cout << "List messages from chat [" << chat_id << "] ..."
                   << std::endl;
         send_query(
             td_api::make_object<td_api::getChatHistory>(chat_id, from_msg_id,
-                                                        offset, 10, false),
+                                                        offset, limit, false),
             [this](Object object) {
               if (object->get_id() == td_api::error::ID) {
                 auto&& e = td::move_tl_object_as<td_api::error>(object);

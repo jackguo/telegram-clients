@@ -139,6 +139,7 @@ class Downloader : public TdTask {
   std::unordered_set<int32_t> downloaded_files_;
   std::ofstream log_;
   int32_t direction_{1};
+  bool up_to_date_{ false };
   const static int32_t nightModeLimit = 5;
   const static int32_t daytimeModeLimit = 2;
 
