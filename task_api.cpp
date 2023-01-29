@@ -2,6 +2,7 @@
 
 #include <regex>
 #include <sstream>
+#include <climits>
 
 using namespace task_api;
 
@@ -216,13 +217,14 @@ Downloader::Downloader(int64_t chat, int64_t msg, int32_t limit,
     : TdTask(client_ptr),
       chat_id_(chat),
       last_msg_id_(msg),
-      limit_(limit),
       direction_(direction) {
   std::time_t now = std::time(nullptr);
   log_ = std::ofstream("tdlib/" + std::to_string(now) + "-downloading.log",
                       std::ios_base::out | std::ios_base::app);
   client_ptr_->subscribe_update(td_api::updateFile::ID, this);
-  if (direction_ < 0 && limit_ == 0) {
+  if (limit > 0) {
+    limit_ = limit;
+  } else {
     limit_ = INT_MAX;
   }
 }
@@ -265,9 +267,9 @@ void Downloader::retrieve_more_msg() {
           auto messages = td::move_tl_object_as<td_api::messages>(object);
           if (messages->messages_.size() < 1) {
             log_ << "ERROR: 0 message returned while retrieving the last "
-                         "message "
-                         "id, will have to try again"
-                      << std::endl;
+                    "message "
+                    "id, will have to try again"
+                 << std::endl;
             return;
           }
 
@@ -278,47 +280,40 @@ void Downloader::retrieve_more_msg() {
     int32_t num =
         std::min(get_concurrent_limit(),
                  limit_ - static_cast<int32_t>(downloaded_files_.size()));
-    if (direction_ > 0) {
-      send_query(td_api::make_object<td_api::getChatHistory>(
-                     chat_id_, last_msg_id_, 0, num, false),
-                 [this](Object object) {
-                   if (this->log_msg_if_error(
-                           object,
-                           "Failed to get messages from chat(will retry "
-                           "later): ")) {
-                     return;
-                   }
+    int32_t offset = 0;
+    if (direction_ < 0) {
+      ++num;
+      offset = -num;
+    }
 
-                   auto messages =
-                       td::move_tl_object_as<td_api::messages>(object);
+    send_query(td_api::make_object<td_api::getChatHistory>(
+                   chat_id_, last_msg_id_, offset, num, false),
+               [this, num](Object object) {
+                 if (this->log_msg_if_error(
+                         object,
+                         "Failed to get messages from chat(will retry "
+                         "later): ")) {
+                   return;
+                 }
+
+                 auto messages =
+                     td::move_tl_object_as<td_api::messages>(object);
+                 if (messages->messages_.size() < num) {
+                   this->up_to_date_ = true;
+                 }
+
+                 if (this->direction_ > 0) {
                    for (auto m = messages->messages_.begin();
                         m != messages->messages_.end(); ++m) {
                      do_download_if_video(*m);
                    }
-                 });
-    } else {
-      ++num;
-      send_query(td_api::make_object<td_api::getChatHistory>(
-                     chat_id_, last_msg_id_, -num, num, false),
-                 [this, num](Object object) {
-                   if (this->log_msg_if_error(
-                           object,
-                           "Failed to get messages from chat(will retry "
-                           "later): ")) {
-                     return;
-                   }
-                   auto messages =
-                       td::move_tl_object_as<td_api::messages>(object);
-                   if (messages->messages_.size() < num) {
-                     up_to_date_ = true;
-                   }
-
+                 } else {
                    for (auto m = ++messages->messages_.rbegin();
                         m != messages->messages_.rend(); ++m) {
                      do_download_if_video(*m);
                    }
-                 });
-    }
+                 }
+               });
   }
 }
 
