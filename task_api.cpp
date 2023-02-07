@@ -489,6 +489,16 @@ void TdMain::run() {
         terminate();
         return;
       }
+      if (action == "stop") {
+        std::cout << "Stopping downloading thread...";
+        if (task_handles_.size() > 1) {
+          task_handles_.back()->terminate();
+          if (workers_.back().joinable()) {
+            workers_.back().join();
+          }
+        }
+        std::cout << "Done!" << std::endl;
+      }
       if (action == "u") {
         std::cout << "Checking for updates..." << std::endl;
         process_responses();
