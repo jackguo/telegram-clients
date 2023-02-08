@@ -6,6 +6,19 @@
 
 using namespace task_api;
 
+void replace_char(std::string& s, char c1, char c2) {
+  int pos = s.find(c1, 0);
+  while (pos != std::string::npos) {
+    s.replace(pos, 1, 1, c2);
+    pos = s.find(c1, pos + 1);
+  }
+}
+
+void clean_text(std::string& s) {
+  replace_char(s, '[', '(');
+  replace_char(s, ']', ')');
+}
+
 ClientWrapper::ClientWrapper() {
   td::ClientManager::execute(
       td_api::make_object<td_api::setLogVerbosityLevel>(1));
@@ -219,7 +232,7 @@ Downloader::Downloader(int64_t chat, int64_t msg, int32_t limit,
       last_msg_id_(msg),
       direction_(direction) {
   std::time_t now = std::time(nullptr);
-  log_ = std::ofstream("tdlib/" + std::to_string(now) + "-downloading.log",
+  log_ = std::ofstream("tdlib/" + std::to_string(now) + "-" + std::to_string(chat) + "-downloading.log",
                       std::ios_base::out | std::ios_base::app);
   client_ptr_->subscribe_update(td_api::updateFile::ID, this);
   if (limit > 0) {
@@ -324,6 +337,7 @@ void Downloader::do_download_if_video(
         static_cast<const td_api::messageVideo&>(*mptr->content_);
     std::string caption = std::regex_replace(msg_content.caption_->text_,
                                              std::regex("\\s+"), " ");
+    clean_text(caption);
     int64_t msg_id = mptr->id_;
     int32_t file_id = msg_content.video_->video_->id_;
 
@@ -356,6 +370,7 @@ void Downloader::process_update(Object& update) {
                      // completed
                      // [" << f->is_downloading_completed_ << "]" << std::endl;
                      if (f->is_downloading_completed_) {
+                       clean_text(f->path_);
                        log_ << get_current_timestamp() << " INFO: File ["
                            << f->path_ << "], id[" << id
                            << "] download completed." << std::endl;
@@ -379,6 +394,15 @@ int32_t Downloader::get_concurrent_limit() {
   } else {
     return daytimeModeLimit;
   }
+}
+
+void Downloader::print_status() {
+  std::cout << "Downloader status: " << std::endl;
+  std::cout << "  terminated: " << terminate_ << std::endl;
+  std::cout << "  chat_id: " << chat_id_ << std::endl;
+  std::cout << "  max to download: " << limit_ << std::endl;
+  std::cout << "  completed: " << downloaded_files_.size() << std::endl;
+  std::cout << "  in progress: " << downloading_files_.size() << std::endl;
 }
 
 TdTask::TdTask(ClientWrapper* client_ptr) : client_ptr_(client_ptr) {}
@@ -595,6 +619,14 @@ void TdMain::run() {
         Downloader* downloader = new Downloader(chat_id, starting_message_id,
                                                 limit, direction, client_ptr_);
         launch_task(downloader);
+      } else if (action == "dstatus") {
+        if (task_handles_.size() > 1) {
+          for (auto it = task_handles_.rbegin(); it != task_handles_.rend() - 1; ++it) {
+            (*it)->print_status();
+          }
+        } else {
+          std::cout << "No downloader was created so far..." << std::endl;
+        }
       }
     }
   }
