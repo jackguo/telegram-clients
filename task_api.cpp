@@ -403,6 +403,8 @@ void Downloader::print_status() {
   std::cout << "  max to download: " << limit_ << std::endl;
   std::cout << "  completed: " << downloaded_files_.size() << std::endl;
   std::cout << "  in progress: " << downloading_files_.size() << std::endl;
+  std::cout << "  awaiting request: " << handlers_.size() << std::endl;
+  std::cout << "  last msg id: " << last_msg_id_ << std::endl;
 }
 
 TdTask::TdTask(ClientWrapper* client_ptr) : client_ptr_(client_ptr) {}
