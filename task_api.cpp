@@ -399,6 +399,7 @@ int32_t Downloader::get_concurrent_limit() {
 void Downloader::print_status() {
   std::cout << "Downloader status: " << std::endl;
   std::cout << "  terminated: " << terminate_ << std::endl;
+  std::cout << "  up_to_date: " << up_to_date_ << std::endl;
   std::cout << "  chat_id: " << chat_id_ << std::endl;
   std::cout << "  max to download: " << limit_ << std::endl;
   std::cout << "  completed: " << downloaded_files_.size() << std::endl;
