@@ -381,7 +381,26 @@ class TdExample {
               send_query(td_api::make_object<td_api::setAuthenticationPhoneNumber>(phone_number, nullptr),
                          create_authentication_query_handler());
             },
-            [this](td_api::authorizationStateWaitEncryptionKey &) {
+            [this](td_api::authorizationStateWaitEmailAddress &) {
+              std::cout << "Enter email address: " << std::flush;
+              std::string email_address;
+              std::cin >> email_address;
+              send_query(
+                  td_api::make_object<td_api::setAuthenticationEmailAddress>(
+                      email_address),
+                  create_authentication_query_handler());
+            },
+            [this](td_api::authorizationStateWaitEmailCode &) {
+              std::cout << "Enter email authentication code: " << std::flush;
+              std::string code;
+              std::cin >> code;
+              send_query(
+                  td_api::make_object<td_api::checkAuthenticationEmailCode>(
+                      td_api::make_object<
+                          td_api::emailAddressAuthenticationCode>(code)),
+                  create_authentication_query_handler());
+            },
+            /*            [this](td_api::authorizationStateWaitEncryptionKey &) {
               std::cout << "Enter encryption key or DESTROY: " << std::flush;
               std::string key;
               std::getline(std::cin, key);
@@ -391,23 +410,23 @@ class TdExample {
                 send_query(td_api::make_object<td_api::checkDatabaseEncryptionKey>(std::move(key)),
                            create_authentication_query_handler());
               }
-            },
+            }, */
             [this](td_api::authorizationStateWaitTdlibParameters &) {
-              auto parameters = td_api::make_object<td_api::tdlibParameters>();
-              parameters->database_directory_ = "tdlib";
+              auto request = td_api::make_object<td_api::setTdlibParameters>();
+              request->database_directory_ = "tdlib";
 //              parameters->use_message_database_ = true;
-              parameters->use_secret_chats_ = true;
+              request->use_secret_chats_ = true;
               std::ifstream ini("./api.ini");
               if (ini.is_open()) {
-                ini >> parameters->api_id_;
-                ini >> parameters->api_hash_;
+                ini >> request->api_id_;
+                ini >> request->api_hash_;
                 ini.close();
               }              
-              parameters->system_language_code_ = "en";
-              parameters->device_model_ = "Desktop";
-              parameters->application_version_ = "1.0";
-              parameters->enable_storage_optimizer_ = true;
-              send_query(td_api::make_object<td_api::setTdlibParameters>(std::move(parameters)),
+              request->system_language_code_ = "en";
+              request->device_model_ = "Desktop";
+              request->application_version_ = "1.0";
+              request->enable_storage_optimizer_ = true;
+              send_query(std::move(request),
                          create_authentication_query_handler());
             }));
   }
