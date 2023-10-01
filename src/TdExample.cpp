@@ -1,65 +1,14 @@
-//
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-#include <td/telegram/Client.h>
-#include <td/telegram/td_api.h>
-#include <td/telegram/td_api.hpp>
+#include "TdExample.hpp"
 
-#include <cstdint>
-#include <functional>
-#include <iostream>
-#include <fstream>
-#include <map>
-#include <memory>
-#include <sstream>
-#include <string>
-#include <vector>
 
-// Simple single-threaded example of TDLib usage.
-// Real world programs should use separate thread for the user input.
-// Example includes user authentication, receiving updates, getting chat list and sending text messages.
-
-// overloaded
-namespace detail {
-template <class... Fs>
-struct overload;
-
-template <class F>
-struct overload<F> : public F {
-  explicit overload(F f) : F(f) {
-  }
-};
-template <class F, class... Fs>
-struct overload<F, Fs...>
-    : public overload<F>
-    , public overload<Fs...> {
-  overload(F f, Fs... fs) : overload<F>(f), overload<Fs...>(fs...) {
-  }
-  using overload<F>::operator();
-  using overload<Fs...>::operator();
-};
-}  // namespace detail
-
-template <class... F>
-auto overloaded(F... f) {
-  return detail::overload<F...>(f...);
-}
-
-namespace td_api = td::td_api;
-
-class TdExample {
- public:
-  TdExample() {
-    td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
+TdExample::TdExample() {
+td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
     client_manager_ = std::make_unique<td::ClientManager>();
     client_id_ = client_manager_->create_client_id();
     send_query(td_api::make_object<td_api::getOption>("version"), {});
-  }
+}
 
-  void loop() {
+void TdExample::loop() {
     while (true) {
       if (need_restart_) {
         restart();
@@ -183,39 +132,22 @@ class TdExample {
         }
       }
     }
-  }
+}
 
- private:
-  using Object = td_api::object_ptr<td_api::Object>;
-  std::unique_ptr<td::ClientManager> client_manager_;
-  std::int32_t client_id_{0};
-
-  td_api::object_ptr<td_api::AuthorizationState> authorization_state_;
-  bool are_authorized_{false};
-  bool need_restart_{false};
-  std::uint64_t current_query_id_{0};
-  std::uint64_t authentication_query_id_{0};
-
-  std::map<std::uint64_t, std::function<void(Object)>> handlers_;
-
-  std::map<std::int64_t, td_api::object_ptr<td_api::user>> users_;
-
-  std::map<std::int64_t, std::string> chat_title_;
-
-  void restart() {
+void TdExample::restart() {
     client_manager_.reset();
     *this = TdExample();
-  }
+}
 
-  void send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler) {
+void TdExample::send_query(td_api::object_ptr<td_api::Function> f, std::function<void(Object)> handler) {
     auto query_id = next_query_id();
     if (handler) {
       handlers_.emplace(query_id, std::move(handler));
     }
     client_manager_->send(client_id_, query_id, std::move(f));
-  }
+}
 
-  void process_response(td::ClientManager::Response response) {
+void TdExample::process_response(td::ClientManager::Response response) {
     if (!response.object) {
       return;
     }
@@ -228,26 +160,26 @@ class TdExample {
       it->second(std::move(response.object));
       handlers_.erase(it);
     }
-  }
+}
 
-  std::string get_user_name(std::int64_t user_id) const {
-    auto it = users_.find(user_id);
+std::string TdExample::get_user_name(std::int64_t user_id) const {
+  auto it = users_.find(user_id);
     if (it == users_.end()) {
       return "unknown user";
     }
     return it->second->first_name_ + " " + it->second->last_name_;
-  }
+}
 
-  std::string get_chat_title(std::int64_t chat_id) const {
-    auto it = chat_title_.find(chat_id);
+std::string TdExample::get_chat_title(std::int64_t chat_id) const {
+  auto it = chat_title_.find(chat_id);
     if (it == chat_title_.end()) {
       return "unknown chat";
     }
     return it->second;
-  }
+}
 
-  void process_update(td_api::object_ptr<td_api::Object> update) {
-    td_api::downcast_call(
+void TdExample::process_update(td_api::object_ptr<td_api::Object> update) {
+  td_api::downcast_call(
         *update, overloaded(
                      [this](td_api::updateAuthorizationState &update_authorization_state) {
                        authorization_state_ = std::move(update_authorization_state.authorization_state_);
@@ -289,10 +221,10 @@ class TdExample {
                        }
                      },
                      [](auto &update) {}));
-  }
-    
-  void print_msg_content(td_api::object_ptr<td_api::MessageContent> & ptr) {
-        std::string text;
+}
+
+ void TdExample::print_msg_content(td_api::object_ptr<td_api::MessageContent> & ptr) {
+    std::string text;
         switch (ptr->get_id()) {
             case td_api::messageText::ID:
                 text = static_cast<td_api::messageText &>(*ptr).text_->text_;
@@ -312,24 +244,24 @@ class TdExample {
                 text = "unsupported: " + std::to_string(ptr->get_id());
         }
         std::cout << text;
-  }
-    
-    void print_msg(td_api::object_ptr<td_api::message> &ptr) {
-        std::cout << "msg[" << ptr->id_ << "] :";
+ }
+
+ void TdExample::print_msg(td_api::object_ptr<td_api::message> &ptr) {
+    std::cout << "msg[" << ptr->id_ << "] :";
         print_msg_content(ptr->content_);
         std::cout << std::endl;
-    }
+ }
 
-  auto create_authentication_query_handler() {
-    return [this, id = authentication_query_id_](Object object) {
+ auto TdExample::create_authentication_query_handler() {
+  return [this, id = authentication_query_id_](Object object) {
       if (id == authentication_query_id_) {
         check_authentication_error(std::move(object));
       }
     };
-  }
+ }
 
-  void on_authorization_state_update() {
-    authentication_query_id_++;
+ void TdExample::on_authorization_state_update() {
+   authentication_query_id_++;
     td_api::downcast_call(
         *authorization_state_,
         overloaded(
@@ -410,22 +342,16 @@ class TdExample {
               send_query(td_api::make_object<td_api::setTdlibParameters>(std::move(parameters)),
                          create_authentication_query_handler());
             }));
-  }
+ }
 
-  void check_authentication_error(Object object) {
-    if (object->get_id() == td_api::error::ID) {
+ void TdExample::check_authentication_error(Object object) {
+  if (object->get_id() == td_api::error::ID) {
       auto error = td::move_tl_object_as<td_api::error>(object);
       std::cout << "Error: " << to_string(error) << std::flush;
       on_authorization_state_update();
     }
-  }
+ }
 
-  std::uint64_t next_query_id() {
-    return ++current_query_id_;
-  }
-};
-
-int main() {
-  TdExample example;
-  example.loop();
-}
+ std::uint64_t TdExample::next_query_id() {
+  return ++current_query_id_;
+ }
