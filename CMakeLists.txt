@@ -10,8 +10,10 @@ set_property(TARGET tdjson_example PROPERTY CXX_STANDARD 11)
 
 include_directories(inc)
 add_executable(td_downloader ./src/td_downloader.cpp)
-add_library(TaskApi ./src/task_api.cpp
-                    ./src/Downloader.cpp)
+add_library(TaskApi ./src/Downloader.cpp
+                    ./src/TdTask.cpp
+                    ./src/ClientWrapper.cpp
+                    ./src/TdMain.cpp)
 target_link_libraries(TaskApi PRIVATE Td::TdStatic)
 target_link_libraries(td_downloader PRIVATE Td::TdStatic TaskApi)
 set_property(TARGET td_downloader PROPERTY CXX_STANDARD 14)
