@@ -1,0 +1,6 @@
+#include "task_api.h"
+#include "Task.hpp"
+#include "ClientWrapper.hpp"
+#include "TdTask.hpp"
+#include "Downloader.hpp"
+#include "TdMain.hpp"
