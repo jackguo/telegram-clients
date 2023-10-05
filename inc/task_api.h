@@ -31,7 +31,7 @@ struct overload<F, Fs...> : public overload<F>, public overload<Fs...> {
 };
 }  // namespace detail
 
-namespace task_api {
+
 template <class... F>
 auto overloaded(F... f) {
   return detail::overload<F...>(f...);

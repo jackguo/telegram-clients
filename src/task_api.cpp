@@ -4,8 +4,6 @@
 #include <sstream>
 #include <climits>
 
-using namespace task_api;
-
 ClientWrapper::ClientWrapper() {
   td::ClientManager::execute(
       td_api::make_object<td_api::setLogVerbosityLevel>(1));
