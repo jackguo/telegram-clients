@@ -1,11 +1,15 @@
 #include "TdExample.hpp"
 
-
 TdExample::TdExample() {
 td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
     client_manager_ = std::make_unique<td::ClientManager>();
     client_id_ = client_manager_->create_client_id();
     send_query(td_api::make_object<td_api::getOption>("version"), {});
+}
+
+void TdExample::setCredentials(int api_id, std::string api_hash) {
+  this->api_hash = api_hash;
+  this->api_id = api_id;
 }
 
 void TdExample::loop() {
@@ -329,12 +333,8 @@ void TdExample::process_update(td_api::object_ptr<td_api::Object> update) {
               parameters->database_directory_ = "tdlib";
 //              parameters->use_message_database_ = true;
               parameters->use_secret_chats_ = true;
-              std::ifstream ini("./api.ini");
-              if (ini.is_open()) {
-                ini >> parameters->api_id_;
-                ini >> parameters->api_hash_;
-                ini.close();
-              }              
+              parameters->api_hash_ = this->api_hash; 
+              parameters->api_id_ = this->api_id;           
               parameters->system_language_code_ = "en";
               parameters->device_model_ = "Desktop";
               parameters->application_version_ = "1.0";
