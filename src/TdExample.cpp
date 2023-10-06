@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include "TdExample.hpp"
 
 TdExample::TdExample() {
@@ -5,11 +6,6 @@ td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1))
     client_manager_ = std::make_unique<td::ClientManager>();
     client_id_ = client_manager_->create_client_id();
     send_query(td_api::make_object<td_api::getOption>("version"), {});
-}
-
-void TdExample::setCredentials(int api_id, std::string api_hash) {
-  this->api_hash = api_hash;
-  this->api_id = api_id;
 }
 
 void TdExample::loop() {
@@ -318,9 +314,8 @@ void TdExample::process_update(td_api::object_ptr<td_api::Object> update) {
                          create_authentication_query_handler());
             },
             [this](td_api::authorizationStateWaitEncryptionKey &) {
-              std::cout << "Enter encryption key or DESTROY: " << std::flush;
-              std::string key;
-              std::getline(std::cin, key);
+              std::string key = getpass("Enter telegram database encryption key or DESTROY to wipe all data: ");
+              //std::getline(std::cin, key);
               if (key == "DESTROY") {
                 send_query(td_api::make_object<td_api::destroy>(), create_authentication_query_handler());
               } else {
@@ -331,10 +326,10 @@ void TdExample::process_update(td_api::object_ptr<td_api::Object> update) {
             [this](td_api::authorizationStateWaitTdlibParameters &) {
               auto parameters = td_api::make_object<td_api::tdlibParameters>();
               parameters->database_directory_ = "tdlib";
-//              parameters->use_message_database_ = true;
+              parameters->use_message_database_ = true;
               parameters->use_secret_chats_ = true;
-              parameters->api_hash_ = this->api_hash; 
-              parameters->api_id_ = this->api_id;           
+              parameters->api_hash_ = API_HASH; 
+              parameters->api_id_ = API_ID;           
               parameters->system_language_code_ = "en";
               parameters->device_model_ = "Desktop";
               parameters->application_version_ = "1.0";
