@@ -22,4 +22,4 @@ set_property(TARGET TaskApi PROPERTY CXX_STANDARD 14)
 add_executable(ngram main.cpp
                      ./src/TdExample.cpp)
 target_link_libraries(ngram PRIVATE Td::TdStatic)
-set_property(TARGET ngram PROPERTY CXX_STANDARD 14)
+set_property(TARGET ngram PROPERTY CXX_STANDARD 17)

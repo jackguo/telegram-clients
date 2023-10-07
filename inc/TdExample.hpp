@@ -77,4 +77,5 @@ class TdExample {
   void on_authorization_state_update();
   void check_authentication_error(Object object);
   std::uint64_t next_query_id();
+  int select_action(std::string &action, std::istringstream &ss);
 };

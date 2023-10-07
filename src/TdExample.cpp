@@ -1,5 +1,10 @@
 #include <unistd.h>
+#include <string_view>
 #include "TdExample.hpp"
+
+constexpr unsigned int hash(const char *s, int off = 0) {                        
+    return !s[off] ? 5381 : (hash(s, off+1)*33) ^ s[off];                           
+}  
 
 TdExample::TdExample() {
 td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1));
@@ -8,46 +13,44 @@ td::ClientManager::execute(td_api::make_object<td_api::setLogVerbosityLevel>(1))
     send_query(td_api::make_object<td_api::getOption>("version"), {});
 }
 
-void TdExample::loop() {
-    while (true) {
-      if (need_restart_) {
-        restart();
-      } else if (!are_authorized_) {
-        process_response(client_manager_->receive(10));
-      } else {
-        std::cout << "Enter action [q] quit [u] check for updates and request results [c] show chats [m <chat_id> "
-        "<text>] send message [me] show self [l] logout: "
-        << std::endl;
-        std::string line;
-        std::getline(std::cin, line);
-        std::istringstream ss(line);
-        std::string action;
-        if (!(ss >> action)) {
-          continue;
-        }
-        if (action == "q") {
-          return;
-        }
-        if (action == "u") {
+int TdExample::select_action(std::string &action, std::istringstream &ss) {
+    switch (hash(action.c_str())) {
+          case hash("q"): {
+          return -1;
+          }
+
+          case hash("u"): {
           std::cout << "Checking for updates..." << std::endl;
           while (true) {
             auto response = client_manager_->receive(0);
             if (response.object) {
               process_response(std::move(response));
             } else {
-              break;
+              return -2;
             }
           }
-        } else if (action == "close") {
+          return 0;
+          }
+
+          case hash("close"): {
           std::cout << "Closing..." << std::endl;
           send_query(td_api::make_object<td_api::close>(), {});
-        } else if (action == "me") {
+          return -1;
+          }
+
+          case hash("me"): {
           send_query(td_api::make_object<td_api::getMe>(),
-                     [this](Object object) { std::cout << to_string(object) << std::endl; });
-        } else if (action == "l") {
+          [this](Object object) { std::cout << to_string(object) << std::endl; });
+          return 0;
+          }
+
+          case hash("l"): {
           std::cout << "Logging out..." << std::endl;
           send_query(td_api::make_object<td_api::logOut>(), {});
-        } else if (action == "m") {
+          return 0;
+          }
+
+          case hash("m"): {
           std::int64_t chat_id;
           ss >> chat_id;
           ss.get();
@@ -63,7 +66,10 @@ void TdExample::loop() {
           send_message->input_message_content_ = std::move(message_content);
           
           send_query(std::move(send_message), {});
-        } else if (action == "c") {
+          return 0;
+          }
+
+          case hash("c"): {
           std::cout << "Loading chat list..." << std::endl;
           send_query(td_api::make_object<td_api::getChats>(nullptr, 100), [this](Object object) {
             if (object->get_id() == td_api::error::ID) {
@@ -74,7 +80,10 @@ void TdExample::loop() {
               std::cout << "[chat_id:" << chat_id << "] [title:" << chat_title_[chat_id] << "]" << std::endl;
             }
           });
-        } else if (action == "ls") {
+          return 0;
+          }
+
+          case hash("ls"): {
           std::int64_t chat_id, from_msg_id, offset;
           ss >> chat_id;
           ss >> from_msg_id;
@@ -85,7 +94,7 @@ void TdExample::loop() {
             if (object->get_id() == td_api::error::ID) {
               auto&& e = td::move_tl_object_as<td_api::error>(object);
               std::cout << "Error getting chat history: " << e->message_ << std::endl;
-              return;
+              return -2;
             }
             
             if (object->get_id() == td_api::messages::ID) {
@@ -99,8 +108,12 @@ void TdExample::loop() {
               print_msg(*mptr);
               //std::cout << "message : " << m->get_id() << " " << m->content_->get_id() << std::endl;
             }
+            return 0;
           });
-        } else if (action == "getMsg") {
+          
+          }
+
+          case hash("getMsg"): {
           std::int64_t chat_id, message_id;
           ss >> chat_id;
           ss >> message_id;
@@ -109,13 +122,17 @@ void TdExample::loop() {
             if (object->get_id() == td_api::error::ID) {
               auto&& e = td::move_tl_object_as<td_api::error>(object);
               std::cout << "Error showing message: " << e->message_ << std::endl;
-              return;
+              return -2;
             }
             
             auto m = td::move_tl_object_as<td_api::message>(object);
             print_msg(m);
+            return 0;
           });
-        } else if (action == "d") {
+          
+          }
+
+          case hash("d"): {
           std::int64_t file_id;
           ss >> file_id;
           std::cout << "Download file[" << file_id << "]..." << std::endl;
@@ -123,15 +140,53 @@ void TdExample::loop() {
             if (object->get_id() == td_api::error::ID) {
               auto&& e = td::move_tl_object_as<td_api::error>(object);
               std::cout << "Error downloading file: " << e->message_ << std::endl;
-              return;
+              return -2;
             }
             
             auto f = td::move_tl_object_as<td_api::file>(object);
             std::cout << "Downloading file: [" << f->local_->path_ << "] size: [" << f->size_ << "]." << std::endl;
+            return 0;
           });
+          
+          }
+          default:
+          return 0;
         }
+}
+
+void TdExample::loop() {
+    while (true) {
+      if (need_restart_) {
+        restart();
+      } else if (!are_authorized_) {
+        process_response(client_manager_->receive(10));
+      } else {
+        std::cout << "**************Enter next action********************************" << std::endl;
+        std::cout << "[q] quit" << std::endl;
+        std::cout << "[u] check for updates and request results " << std::endl;
+        std::cout << "[c] show chats " << std::endl; 
+        std::cout << "[m <chat_id> <text>] send message" << std::endl; 
+        std::cout << "[me] show self" << std::endl; 
+        std::cout << "[l] logout" << std::endl; 
+        std::cout << "[ls <chat id>] to list messages in a specific chat" << std::endl;
+        std::cout << "[getMsg <chat_id> <message id>] to list messages in a specific chat" << std::endl;
+        std::cout << "[d <file_id>] to download a file from the chat" << std::endl;
+        std::string line;
+        std::getline(std::cin, line);
+        std::istringstream ss(line);
+        std::string action;
+        if (!(ss >> action)) {
+          continue;
+        }
+
+        if (select_action(action, ss) == -1) {
+           break;
+        }
+        
       }
+      
     }
+    
 }
 
 void TdExample::restart() {
