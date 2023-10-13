@@ -73,7 +73,7 @@ int TdExample::select_action(std::string &action, std::istringstream &ss) {
           std::cout << "Loading chat list..." << std::endl;
           send_query(td_api::make_object<td_api::getChats>(nullptr, 100), [this](Object object) {
             if (object->get_id() == td_api::error::ID) {
-              return;
+              return -2;
             }
             auto chats = td::move_tl_object_as<td_api::chats>(object);
             for (auto chat_id : chats->chat_ids_) {
@@ -149,6 +149,20 @@ int TdExample::select_action(std::string &action, std::istringstream &ss) {
           });
           
           }
+
+          case hash("getUsers"): {
+            std::cout << "Loading chat list..." << std::endl;
+          send_query(td_api::make_object<td_api::getChats>(nullptr, 100), [this](Object object) {
+            if (object->get_id() == td_api::error::ID) {
+              return -2;
+            }
+            auto chats = td::move_tl_object_as<td_api::chats>(object);
+            for (auto chat_id : chats->chat_ids_) {
+              std::cout << "[chat_id:" << chat_id << "] [title:" << chat_title_[chat_id] << "]" << std::endl;
+            }
+          });
+          }
+
           default:
           return 0;
         }

@@ -6,7 +6,7 @@ find_package(Td 1.8.0 REQUIRED)
 
 add_executable(tdjson_example ./src/tdjson_example.cpp)
 target_link_libraries(tdjson_example PRIVATE Td::TdJson)
-set_property(TARGET tdjson_example PROPERTY CXX_STANDARD 11)
+set_property(TARGET tdjson_example PROPERTY CXX_STANDARD 17)
 
 include_directories(inc)
 add_executable(td_downloader ./src/td_downloader.cpp)
