@@ -9,7 +9,7 @@ Building on Unix/Linux
 ----------
 **Source**
 
-    git clone https://github.com/alimovlex/ngram
+    git clone --recursive https://github.com/alimovlex/ngram
 
 **Build**
 
