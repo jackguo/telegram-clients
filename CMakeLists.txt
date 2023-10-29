@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.4 FATAL_ERROR)
 
 project(TdDownloader VERSION 1.0 LANGUAGES CXX)
 
-find_package(Td 1.8.0 REQUIRED)
+add_subdirectory(./lib/td)
 
 add_executable(tdjson_example ./src/tdjson_example.cpp)
 target_link_libraries(tdjson_example PRIVATE Td::TdJson)
