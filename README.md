@@ -1,4 +1,4 @@
-# Ngram
+# Ngram [![Lines of code](https://tokei.rs/b1/github/alimovlex/ngram?category=code)](https://github.com/alimovlex/ngram)
 A forked CLI telegram client. Refactored and revamped.
 
 **Dependencies**
