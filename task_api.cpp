@@ -6,6 +6,19 @@
 
 using namespace task_api;
 
+void replace_char(std::string& s, char c1, char c2) {
+  int pos = s.find(c1, 0);
+  while (pos != std::string::npos) {
+    s.replace(pos, 1, 1, c2);
+    pos = s.find(c1, pos + 1);
+  }
+}
+
+void clean_text(std::string& s) {
+  replace_char(s, '[', '(');
+  replace_char(s, ']', ')');
+}
+
 ClientWrapper::ClientWrapper() {
   td::ClientManager::execute(
       td_api::make_object<td_api::setLogVerbosityLevel>(1));
@@ -157,7 +170,26 @@ void ClientWrapper::on_authorization_state_update() {
                     phone_number, nullptr),
                 create_authentication_query_handler());
           },
-          [this](td_api::authorizationStateWaitEncryptionKey&) {
+          [this](td_api::authorizationStateWaitEmailAddress&) {
+            std::cout << "Enter email address: " << std::flush;
+            std::string email_address;
+            std::cin >> email_address;
+            send_authentication_query(
+              td_api::make_object<td_api::setAuthenticationEmailAddress>(
+                    email_address),
+                create_authentication_query_handler());
+          },
+          [this](td_api::authorizationStateWaitEmailCode&) {
+            std::cout << "Enter email authentication code: " << std::flush;
+            std::string code;
+            std::cin >> code;
+            send_authentication_query(
+                td_api::make_object<td_api::checkAuthenticationEmailCode>(
+                    td_api::make_object<td_api::emailAddressAuthenticationCode>(
+                        code)),
+                create_authentication_query_handler());
+          },
+          /*          [this](td_api::authorizationStateWaitEncryptionKey&) {
             std::cout << "Enter encryption key or DESTROY: " << std::flush;
             std::string key;
             std::getline(std::cin, key);
@@ -170,27 +202,27 @@ void ClientWrapper::on_authorization_state_update() {
                       std::move(key)),
                   create_authentication_query_handler());
             }
-          },
+          }, */
           [this](td_api::authorizationStateWaitTdlibParameters&) {
-            auto parameters = td_api::make_object<td_api::tdlibParameters>();
-            parameters->database_directory_ = "tdlib";
+            auto requests = td_api::make_object<td_api::setTdlibParameters>();
+            requests->database_directory_ = "tdlib";
             //              parameters->use_message_database_ = true;
-            parameters->use_secret_chats_ = true;
+            requests->use_secret_chats_ = true;
             // read ini file
             std::ifstream ini("./api.ini");
             if (ini.is_open()) {
-              ini >> parameters->api_id_;
-              ini >> parameters->api_hash_;
+              ini >> requests->api_id_;
+              ini >> requests->api_hash_;
+              ini >> requests->database_encryption_key_;
               ini.close();
             }
-            parameters->system_language_code_ = "en";
-            parameters->device_model_ = "Desktop";
-            parameters->application_version_ = "1.0";
-            parameters->enable_storage_optimizer_ = false;
+            requests->system_language_code_ = "zh";
+            requests->device_model_ = "Desktop";
+            requests->application_version_ = "1.0";
+            requests->enable_storage_optimizer_ = false;
             send_authentication_query(
-                td_api::make_object<td_api::setTdlibParameters>(
-                    std::move(parameters)),
-                create_authentication_query_handler());
+              std::move(requests),
+              create_authentication_query_handler());
           }));
 }
 
@@ -219,7 +251,7 @@ Downloader::Downloader(int64_t chat, int64_t msg, int32_t limit,
       last_msg_id_(msg),
       direction_(direction) {
   std::time_t now = std::time(nullptr);
-  log_ = std::ofstream("tdlib/" + std::to_string(now) + "-downloading.log",
+  log_ = std::ofstream("tdlib/" + std::to_string(now) + "-" + std::to_string(chat) + "-downloading.log",
                       std::ios_base::out | std::ios_base::app);
   client_ptr_->subscribe_update(td_api::updateFile::ID, this);
   if (limit > 0) {
@@ -324,6 +356,7 @@ void Downloader::do_download_if_video(
         static_cast<const td_api::messageVideo&>(*mptr->content_);
     std::string caption = std::regex_replace(msg_content.caption_->text_,
                                              std::regex("\\s+"), " ");
+    clean_text(caption);
     int64_t msg_id = mptr->id_;
     int32_t file_id = msg_content.video_->video_->id_;
 
@@ -356,6 +389,7 @@ void Downloader::process_update(Object& update) {
                      // completed
                      // [" << f->is_downloading_completed_ << "]" << std::endl;
                      if (f->is_downloading_completed_) {
+                       clean_text(f->path_);
                        log_ << get_current_timestamp() << " INFO: File ["
                            << f->path_ << "], id[" << id
                            << "] download completed." << std::endl;
@@ -379,6 +413,19 @@ int32_t Downloader::get_concurrent_limit() {
   } else {
     return daytimeModeLimit;
   }
+}
+
+void Downloader::print_status() {
+  std::cout << "Downloader status: " << std::endl;
+  std::cout << "  terminated: " << terminate_ << std::endl;
+  std::cout << "  up_to_date: " << up_to_date_ << std::endl;
+  std::cout << "  direction: " << (direction_ > 0 ? "backward" : "forward") << std::endl;
+  std::cout << "  chat_id: " << chat_id_ << std::endl;
+  std::cout << "  max to download: " << limit_ << std::endl;
+  std::cout << "  completed: " << downloaded_files_.size() << std::endl;
+  std::cout << "  in progress: " << downloading_files_.size() << std::endl;
+  std::cout << "  awaiting request: " << handlers_.size() << std::endl;
+  std::cout << "  last msg id: " << last_msg_id_ << std::endl;
 }
 
 TdTask::TdTask(ClientWrapper* client_ptr) : client_ptr_(client_ptr) {}
@@ -489,6 +536,16 @@ void TdMain::run() {
         terminate();
         return;
       }
+      if (action == "stop") {
+        std::cout << "Stopping downloading thread...";
+        if (task_handles_.size() > 1) {
+          task_handles_.back()->terminate();
+          if (workers_.back().joinable()) {
+            workers_.back().join();
+          }
+        }
+        std::cout << "Done!" << std::endl;
+      }
       if (action == "u") {
         std::cout << "Checking for updates..." << std::endl;
         process_responses();
@@ -585,6 +642,14 @@ void TdMain::run() {
         Downloader* downloader = new Downloader(chat_id, starting_message_id,
                                                 limit, direction, client_ptr_);
         launch_task(downloader);
+      } else if (action == "dstatus") {
+        if (task_handles_.size() > 1) {
+          for (auto it = task_handles_.rbegin(); it != task_handles_.rend() - 1; ++it) {
+            (*it)->print_status();
+          }
+        } else {
+          std::cout << "No downloader was created so far..." << std::endl;
+        }
       }
     }
   }

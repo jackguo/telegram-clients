@@ -44,6 +44,8 @@ class Task {
  public:
   virtual void run() = 0;
   void terminate() { terminate_ = true; }
+  virtual void print_status() = 0;
+  virtual ~Task() {}
 
  protected:
   bool terminate_{false};
@@ -56,6 +58,7 @@ class ClientWrapper : public Task {
   ClientWrapper(const ClientWrapper& other) = delete;
   ClientWrapper& operator=(const ClientWrapper& other) = delete;
   ClientWrapper();
+  virtual ~ClientWrapper() {}
 
   std::uint64_t next_query_id();
 
@@ -67,6 +70,9 @@ class ClientWrapper : public Task {
                   td_api::object_ptr<td_api::Function> f, TdTask* task);
   void subscribe_update(std::int32_t type_id, TdTask* task);
   void run();
+  void print_status() {
+    std::cout << "To be implemented..." << std::endl;
+  }
 
  private:
   std::unique_ptr<td::ClientManager> client_manager_;
@@ -96,6 +102,7 @@ class ClientWrapper : public Task {
 class TdTask : public Task {
  public:
   TdTask(ClientWrapper* client_ptr);
+  virtual ~TdTask() {}
   void accept_response(td::ClientManager::Response response);
 
  protected:
@@ -125,11 +132,13 @@ class Downloader : public TdTask {
   Downloader(int64_t chat, int64_t msg, int32_t limit, int32_t direction,
              ClientWrapper* client_ptr);
 
-  ~Downloader() { log_.close(); }
+  virtual ~Downloader() { log_.close(); }
 
   void run() { auto_download(); }
 
   void process_update(Object& update);
+
+  void print_status();
 
  private:
   int64_t chat_id_;
@@ -168,8 +177,11 @@ class Downloader : public TdTask {
 class TdMain : public TdTask {
  public:
   TdMain();
-  ~TdMain();
+  virtual ~TdMain();
   virtual void run();
+  void print_status() {
+    std::cout << "To be implemented..." << std::endl;
+  }
 
  private:
   std::map<std::int64_t, td_api::object_ptr<td_api::user>> users_;
