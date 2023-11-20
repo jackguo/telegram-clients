@@ -17,3 +17,7 @@ To generate xcode build project, add `-G Xcode`
 ```
 cmake --build .
 ```
+
+#### License
+
+This software is licensed under the terms of the Boost Software License. See [LICENSE_1_0.txt](http://www.boost.org/LICENSE_1_0.txt) for more information.
