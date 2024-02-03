@@ -219,7 +219,7 @@ void ClientWrapper::on_authorization_state_update() {
             requests->system_language_code_ = "zh";
             requests->device_model_ = "Desktop";
             requests->application_version_ = "1.0";
-            requests->enable_storage_optimizer_ = false;
+            //requests->enable_storage_optimizer_ = false;
             send_authentication_query(
               std::move(requests),
               create_authentication_query_handler());
@@ -244,10 +244,11 @@ void ClientWrapper::send_authentication_query(
   client_manager_->send(client_id_, query_id, std::move(f));
 }
 
-Downloader::Downloader(int64_t chat, int64_t msg, int32_t limit,
+Downloader::Downloader(int64_t chat, const std::string& title, int64_t msg, int32_t limit,
                        int32_t direction, ClientWrapper* client_ptr)
     : TdTask(client_ptr),
       chat_id_(chat),
+      chat_title_(title),
       last_msg_id_(msg),
       direction_(direction) {
   std::time_t now = std::time(nullptr);
@@ -421,6 +422,7 @@ void Downloader::print_status() {
   std::cout << "  up_to_date: " << up_to_date_ << std::endl;
   std::cout << "  direction: " << (direction_ > 0 ? "backward" : "forward") << std::endl;
   std::cout << "  chat_id: " << chat_id_ << std::endl;
+  std::cout << "  chat_title: " << chat_title_ << std::endl;
   std::cout << "  max to download: " << limit_ << std::endl;
   std::cout << "  completed: " << downloaded_files_.size() << std::endl;
   std::cout << "  in progress: " << downloading_files_.size() << std::endl;
@@ -538,12 +540,7 @@ void TdMain::run() {
       }
       if (action == "stop") {
         std::cout << "Stopping downloading thread...";
-        if (task_handles_.size() > 1) {
-          task_handles_.back()->terminate();
-          if (workers_.back().joinable()) {
-            workers_.back().join();
-          }
-        }
+        this->stop_tasks(false);
         std::cout << "Done!" << std::endl;
       }
       if (action == "u") {
@@ -635,11 +632,11 @@ void TdMain::run() {
         ss >> limit;
         ss >> direction;
         direction = direction > 0 ? 1 : -1;
-        std::cout << "Auto downloading from chat [" << chat_id
-                  << "], starting from message [" << starting_message_id
+        std::cout << "Auto downloading from chat [id: " << chat_id
+                  << ", title:" << chat_title_[chat_id] << "], starting from message [" << starting_message_id
                   << "], max to download: [" << limit << "]." << std::endl;
 
-        Downloader* downloader = new Downloader(chat_id, starting_message_id,
+        Downloader* downloader = new Downloader(chat_id, chat_title_[chat_id], starting_message_id,
                                                 limit, direction, client_ptr_);
         launch_task(downloader);
       } else if (action == "dstatus") {
@@ -657,14 +654,7 @@ void TdMain::run() {
 
 void TdMain::terminate() {
   std::cout << "Existing... terminating all threads..." << std::endl;
-  for (auto it = task_handles_.rbegin(); it != task_handles_.rend(); ++it) {
-    (*it)->terminate();
-  }
-  for (auto it = workers_.rbegin(); it != workers_.rend(); ++it) {
-    if (it->joinable()) {
-      it->join();
-    }
-  }
+  this->stop_tasks(true);
   return;
 }
 

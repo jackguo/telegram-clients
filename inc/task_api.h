@@ -129,7 +129,7 @@ class Downloader : public TdTask {
  public:
   Downloader(const Downloader& other) = delete;
   Downloader& operator=(const Downloader& other) = delete;
-  Downloader(int64_t chat, int64_t msg, int32_t limit, int32_t direction,
+  Downloader(int64_t chat, const std::string& title, int64_t msg, int32_t limit, int32_t direction,
              ClientWrapper* client_ptr);
 
   virtual ~Downloader() { log_.close(); }
@@ -142,6 +142,7 @@ class Downloader : public TdTask {
 
  private:
   int64_t chat_id_;
+  std::string chat_title_;
   int64_t last_msg_id_;  // last requested msg id
   int32_t limit_;
   std::unordered_set<int32_t> downloading_files_;
@@ -238,6 +239,24 @@ class TdMain : public TdTask {
       return "unknown chat";
     }
     return it->second;
+  }
+  
+  void stop_tasks(bool terminating) {
+    std::reverse_iterator<std::vector<Task*>::iterator> task_end = task_handles_.rend();
+    std::reverse_iterator<std::vector<std::thread>::iterator> worker_end = workers_.rend();
+    if (!terminating) {
+      --task_end;
+      --worker_end;
+    }
+    
+    for (auto it = task_handles_.rbegin(); it < task_end; ++it) {
+      (*it)->terminate();
+    }
+    for (auto it = workers_.rbegin(); it < worker_end; ++it) {
+      if (it->joinable()) {
+        it->join();
+      }
+    }
   }
 };
 }  // namespace task_api
