@@ -7,7 +7,7 @@
 using namespace task_api;
 
 void replace_char(std::string& s, char c1, char c2) {
-  int pos = s.find(c1, 0);
+  size_t pos = s.find(c1, 0);
   while (pos != std::string::npos) {
     s.replace(pos, 1, 1, c2);
     pos = s.find(c1, pos + 1);
@@ -625,8 +625,8 @@ void TdMain::run() {
                      print_msg(m);
                    });
       } else if (action == "ad") {
-        std::int64_t chat_id, starting_message_id;
-        std::int32_t limit, direction;
+        std::int64_t chat_id = 0, starting_message_id = 0;
+        std::int32_t limit = 0, direction = 0;
         ss >> chat_id;
         ss >> starting_message_id;
         ss >> limit;
@@ -641,7 +641,8 @@ void TdMain::run() {
         launch_task(downloader);
       } else if (action == "dstatus") {
         if (task_handles_.size() > 1) {
-          for (auto it = task_handles_.rbegin(); it != task_handles_.rend() - 1; ++it) {
+          // print the most recent one in the last
+          for (auto it = task_handles_.begin() + 1; it < task_handles_.end(); ++it) {
             (*it)->print_status();
           }
         } else {
