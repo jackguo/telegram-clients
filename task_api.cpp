@@ -7,7 +7,7 @@
 
 using namespace task_api;
 
-std::unordered_map<int64_t, std::vector<int32_t>> FILE_IDS_LOOKUP;
+std::unordered_map<int64_t, std::vector<std::string>> FILE_NAMES_LOOKUP;
 
 void replace_char(std::string& s, char c1, char c2) {
   size_t pos = s.find(c1, 0);
@@ -366,11 +366,11 @@ void Downloader::do_download_if_video(
 
     if (downloaded_files_.find(file_id) == downloaded_files_.end() &&
         downloading_files_.find(file_id) == downloading_files_.end()) {
-      auto exlusionList = FILE_IDS_LOOKUP.find(this->chat_id_);
+      auto exlusionList = FILE_NAMES_LOOKUP.find(this->chat_id_);
       bool download = true;
-      if (exlusionList != FILE_IDS_LOOKUP.end()) {
-        for (auto& id : exlusionList->second) {
-          if (file_id == id) {
+      if (exlusionList != FILE_NAMES_LOOKUP.end()) {
+        for (auto& name : exlusionList->second) {
+          if (msg_content.video_->file_name_ == name) {
             download = false;
             break;
           }
@@ -531,22 +531,24 @@ TdMain::TdMain() : TdTask(nullptr) {
       std::string s(line);
       std::istringstream in_stream(s);
       int64_t chatId;
-      std::vector<int32_t> fileIds;
+      std::vector<std::string> fileNames;
       in_stream >> chatId;
-      for (int32_t n; in_stream >> n;) {
-        fileIds.push_back(n);
+      for (std::string n; in_stream >> n;) {
+        fileNames.push_back(n);
       }
-      FILE_IDS_LOOKUP.emplace(std::make_pair(chatId, fileIds));
+      FILE_NAMES_LOOKUP.emplace(std::make_pair(chatId, fileNames));
     }
+
+    f.close();
   }
   
-  std::cout << "exclusionlist size: " << FILE_IDS_LOOKUP.size() << std::endl;
-  auto print_vector = [](std::vector<int32_t>& v) {
+  std::cout << "exclusionlist size: " << FILE_NAMES_LOOKUP.size() << std::endl;
+  auto print_vector = [](std::vector<std::string>& v) {
     for (auto& num : v) {
       std::cout << num << ", ";
     }
   };
-  for (auto& n : FILE_IDS_LOOKUP) {
+  for (auto& n : FILE_NAMES_LOOKUP) {
     std::cout << n.first << ": ";
     print_vector(n.second);
     std::cout << std::endl;
