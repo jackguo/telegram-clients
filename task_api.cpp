@@ -6,6 +6,8 @@
 
 using namespace task_api;
 
+std::unordered_map<int64_t, std::vector<int32_t>> FILE_IDS_LOOKUP;
+
 void replace_char(std::string& s, char c1, char c2) {
   size_t pos = s.find(c1, 0);
   while (pos != std::string::npos) {
@@ -363,18 +365,34 @@ void Downloader::do_download_if_video(
 
     if (downloaded_files_.find(file_id) == downloaded_files_.end() &&
         downloading_files_.find(file_id) == downloading_files_.end()) {
-      send_query(
-          td::make_tl_object<td_api::downloadFile>(file_id, 1, 0, 0, false),
-          [this, caption, msg_id](Object object) {
-            if (this->log_msg_if_error(object, "Failed to start file downloading: ")) {
-              return;
-            }
-            int32_t id = static_cast<const td_api::file&>(*object).id_;
-            log_ << get_current_timestamp() << " INFO: "
-                << "File [" << caption << "], id [" << id << "], msg_id ["
-                << msg_id << "] downloading started..." << std::endl;
-            downloading_files_.insert(id);
-          });
+      auto exlusionList = FILE_IDS_LOOKUP.find(this->chat_id_);
+      bool download = true;
+      if (exlusionList != FILE_IDS_LOOKUP.end()) {
+        for (auto& id : exlusionList->second) {
+          if (file_id == id) {
+            download = false;
+            break;
+          }
+        }
+      }
+      if (download) {
+        send_query(
+                   td::make_tl_object<td_api::downloadFile>(file_id, 1, 0, 0, false),
+                   [this, caption, msg_id](Object object) {
+                     if (this->log_msg_if_error(object, "Failed to start file downloading: ")) {
+                       return;
+                     }
+                     int32_t id = static_cast<const td_api::file&>(*object).id_;
+                     log_ << get_current_timestamp() << " INFO: "
+                     << "File [" << caption << "], id [" << id << "], msg_id ["
+                     << msg_id << "] downloading started..." << std::endl;
+                     downloading_files_.insert(id);
+                   });
+      } else {
+        log_ << get_current_timestamp() << " INFO: "
+        << "File [" << caption << "], id [" << file_id << "], msg_id ["
+        << msg_id << "] downloading skipped." << std::endl;
+      }
     }
   }
   last_msg_id_ = mptr->id_;
@@ -504,6 +522,34 @@ TdMain::TdMain() : TdTask(nullptr) {
   client_ptr_->subscribe_update(td_api::updateNewMessage::ID, this);
 
   launch_task(client_ptr_);
+  
+  std::ifstream f("./exclusion.ini");
+  if (f.is_open()) {
+    char line[100];
+    while(f.getline(line, 100)) {
+      std::string s(line);
+      std::istringstream in_stream(s);
+      int64_t chatId;
+      std::vector<int32_t> fileIds;
+      in_stream >> chatId;
+      for (int32_t n; in_stream >> n;) {
+        fileIds.push_back(n);
+      }
+      FILE_IDS_LOOKUP.emplace(std::make_pair(chatId, fileIds));
+    }
+  }
+  
+  std::cout << "exclusionlist size: " << FILE_IDS_LOOKUP.size() << std::endl;
+  auto print_vector = [](std::vector<int32_t>& v) {
+    for (auto& num : v) {
+      std::cout << num << ", ";
+    }
+  };
+  for (auto& n : FILE_IDS_LOOKUP) {
+    std::cout << n.first << ": ";
+    print_vector(n.second);
+    std::cout << std::endl;
+  }
 }
 
 TdMain::~TdMain() {

@@ -132,9 +132,16 @@ class Downloader : public TdTask {
   Downloader(int64_t chat, const std::string& title, int64_t msg, int32_t limit, int32_t direction,
              ClientWrapper* client_ptr);
 
-  virtual ~Downloader() { log_.close(); }
+  virtual ~Downloader() {
+    if (log_.is_open()) {
+      log_.close();
+    }
+  }
 
-  void run() { auto_download(); }
+  void run() { 
+    auto_download();
+    log_.close();
+  }
 
   void process_update(Object& update);
 
