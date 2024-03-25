@@ -3,6 +3,7 @@
 #include <regex>
 #include <sstream>
 #include <climits>
+#include <unordered_map>
 
 using namespace task_api;
 
