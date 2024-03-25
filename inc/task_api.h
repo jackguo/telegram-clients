@@ -229,6 +229,11 @@ class TdMain : public TdTask {
   void print_msg(td_api::object_ptr<td_api::message>& ptr) {
     std::cout << "msg[" << ptr->id_ << "] :";
     print_msg_content(ptr->content_);
+    if (ptr->forward_info_) {
+      std::cout << " forwarded";
+    } else {
+      std:: cout << " not_forwarded";
+    }
     std::cout << std::endl;
   }
 

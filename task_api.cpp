@@ -54,7 +54,7 @@ void ClientWrapper::run() {
   while (!terminate_) {
     receive_and_dispatch();
     if (are_authorized_) {
-      std::this_thread::sleep_for(std::chrono::seconds(10));
+      std::this_thread::sleep_for(std::chrono::seconds(3));
     }
   }
 }
@@ -355,7 +355,8 @@ void Downloader::retrieve_more_msg() {
 
 void Downloader::do_download_if_video(
     const td_api::object_ptr<td_api::message>& mptr) {
-  if (mptr->content_->get_id() == td_api::messageVideo::ID) {
+  if (!mptr->forward_info_
+      && mptr->content_->get_id() == td_api::messageVideo::ID) {
     auto& msg_content =
         static_cast<const td_api::messageVideo&>(*mptr->content_);
     std::string caption = std::regex_replace(msg_content.caption_->text_,
@@ -541,7 +542,7 @@ TdMain::TdMain() : TdTask(nullptr) {
 
     f.close();
   }
-  
+  /*
   std::cout << "exclusionlist size: " << FILE_NAMES_LOOKUP.size() << std::endl;
   auto print_vector = [](std::vector<std::string>& v) {
     for (auto& num : v) {
@@ -553,6 +554,7 @@ TdMain::TdMain() : TdTask(nullptr) {
     print_vector(n.second);
     std::cout << std::endl;
   }
+   */
 }
 
 TdMain::~TdMain() {
