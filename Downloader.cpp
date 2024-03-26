@@ -6,7 +6,7 @@
 
 using namespace task_api;
 
-extern std::unordered_map<int64_t, std::vector<std::string>> FILE_NAMES_LOOKUP;
+extern std::unordered_map<int64_t, std::vector<std::string>> FileNamesLookUp;
 
 extern void clean_text(std::string& s);
 
@@ -134,9 +134,9 @@ void Downloader::do_download_if_video(
 
     if (downloaded_files_.find(file_id) == downloaded_files_.end() &&
       downloading_files_.find(file_id) == downloading_files_.end()) {
-      auto exlusionList = FILE_NAMES_LOOKUP.find(this->chat_id_);
+      auto exlusionList = FileNamesLookUp.find(this->chat_id_);
       bool download = true;
-      if (exlusionList != FILE_NAMES_LOOKUP.end()) {
+      if (exlusionList != FileNamesLookUp.end()) {
         for (auto& name : exlusionList->second) {
           if (msg_content.video_->file_name_ == name) {
             download = false;

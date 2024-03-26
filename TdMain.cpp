@@ -5,7 +5,7 @@
 
 using namespace task_api;
 
-std::unordered_map<int64_t, std::vector<std::string>> FILE_NAMES_LOOKUP;
+std::unordered_map<int64_t, std::vector<std::string>> FileNamesLookUp;
 
 void replace_char(std::string& s, char c1, char c2) {
   size_t pos = s.find(c1, 0);
@@ -42,11 +42,13 @@ TdMain::TdMain() : TdTask(nullptr) {
       for (std::string n; in_stream >> n;) {
         fileNames.push_back(n);
       }
-      FILE_NAMES_LOOKUP.emplace(std::make_pair(chatId, fileNames));
+      FileNamesLookUp.emplace(std::make_pair(chatId, fileNames));
     }
 
     f.close();
   }
+
+  send_query(td_api::make_object<td_api::setLogVerbosityLevel>(0), [this](Object o){});
   /*
   std::cout << "exclusionlist size: " << FILE_NAMES_LOOKUP.size() << std::endl;
   auto print_vector = [](std::vector<std::string>& v) {
