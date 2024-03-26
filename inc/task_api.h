@@ -132,7 +132,7 @@ class Downloader : public TdTask {
   Downloader(int64_t chat, const std::string& title, int64_t msg, int32_t limit, int32_t direction,
              ClientWrapper* client_ptr);
 
-  virtual ~Downloader() {
+  ~Downloader() {
     if (log_.is_open()) {
       log_.close();
     }
@@ -185,7 +185,7 @@ class Downloader : public TdTask {
 class TdMain : public TdTask {
  public:
   TdMain();
-  virtual ~TdMain();
+  ~TdMain();
   virtual void run();
   void print_status() {
     std::cout << "To be implemented..." << std::endl;
