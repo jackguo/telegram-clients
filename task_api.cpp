@@ -3,8 +3,11 @@
 #include <regex>
 #include <sstream>
 #include <climits>
+#include <unordered_map>
 
 using namespace task_api;
+
+std::unordered_map<int64_t, std::vector<std::string>> FILE_NAMES_LOOKUP;
 
 void replace_char(std::string& s, char c1, char c2) {
   size_t pos = s.find(c1, 0);
@@ -51,7 +54,7 @@ void ClientWrapper::run() {
   while (!terminate_) {
     receive_and_dispatch();
     if (are_authorized_) {
-      std::this_thread::sleep_for(std::chrono::seconds(10));
+      std::this_thread::sleep_for(std::chrono::seconds(3));
     }
   }
 }
@@ -352,7 +355,8 @@ void Downloader::retrieve_more_msg() {
 
 void Downloader::do_download_if_video(
     const td_api::object_ptr<td_api::message>& mptr) {
-  if (mptr->content_->get_id() == td_api::messageVideo::ID) {
+  if (!mptr->forward_info_
+      && mptr->content_->get_id() == td_api::messageVideo::ID) {
     auto& msg_content =
         static_cast<const td_api::messageVideo&>(*mptr->content_);
     std::string caption = std::regex_replace(msg_content.caption_->text_,
@@ -363,18 +367,34 @@ void Downloader::do_download_if_video(
 
     if (downloaded_files_.find(file_id) == downloaded_files_.end() &&
         downloading_files_.find(file_id) == downloading_files_.end()) {
-      send_query(
-          td::make_tl_object<td_api::downloadFile>(file_id, 1, 0, 0, false),
-          [this, caption, msg_id](Object object) {
-            if (this->log_msg_if_error(object, "Failed to start file downloading: ")) {
-              return;
-            }
-            int32_t id = static_cast<const td_api::file&>(*object).id_;
-            log_ << get_current_timestamp() << " INFO: "
-                << "File [" << caption << "], id [" << id << "], msg_id ["
-                << msg_id << "] downloading started..." << std::endl;
-            downloading_files_.insert(id);
-          });
+      auto exlusionList = FILE_NAMES_LOOKUP.find(this->chat_id_);
+      bool download = true;
+      if (exlusionList != FILE_NAMES_LOOKUP.end()) {
+        for (auto& name : exlusionList->second) {
+          if (msg_content.video_->file_name_ == name) {
+            download = false;
+            break;
+          }
+        }
+      }
+      if (download) {
+        send_query(
+                   td::make_tl_object<td_api::downloadFile>(file_id, 1, 0, 0, false),
+                   [this, caption, msg_id](Object object) {
+                     if (this->log_msg_if_error(object, "Failed to start file downloading: ")) {
+                       return;
+                     }
+                     int32_t id = static_cast<const td_api::file&>(*object).id_;
+                     log_ << get_current_timestamp() << " INFO: "
+                     << "File [" << caption << "], id [" << id << "], msg_id ["
+                     << msg_id << "] downloading started..." << std::endl;
+                     downloading_files_.insert(id);
+                   });
+      } else {
+        log_ << get_current_timestamp() << " INFO: "
+        << "File [" << caption << "], id [" << file_id << "], msg_id ["
+        << msg_id << "] downloading skipped." << std::endl;
+      }
     }
   }
   last_msg_id_ = mptr->id_;
@@ -504,6 +524,37 @@ TdMain::TdMain() : TdTask(nullptr) {
   client_ptr_->subscribe_update(td_api::updateNewMessage::ID, this);
 
   launch_task(client_ptr_);
+  
+  std::ifstream f("./exclusion.ini");
+  if (f.is_open()) {
+    char line[100];
+    while(f.getline(line, 100)) {
+      std::string s(line);
+      std::istringstream in_stream(s);
+      int64_t chatId;
+      std::vector<std::string> fileNames;
+      in_stream >> chatId;
+      for (std::string n; in_stream >> n;) {
+        fileNames.push_back(n);
+      }
+      FILE_NAMES_LOOKUP.emplace(std::make_pair(chatId, fileNames));
+    }
+
+    f.close();
+  }
+  /*
+  std::cout << "exclusionlist size: " << FILE_NAMES_LOOKUP.size() << std::endl;
+  auto print_vector = [](std::vector<std::string>& v) {
+    for (auto& num : v) {
+      std::cout << num << ", ";
+    }
+  };
+  for (auto& n : FILE_NAMES_LOOKUP) {
+    std::cout << n.first << ": ";
+    print_vector(n.second);
+    std::cout << std::endl;
+  }
+   */
 }
 
 TdMain::~TdMain() {

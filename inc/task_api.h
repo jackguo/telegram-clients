@@ -132,9 +132,16 @@ class Downloader : public TdTask {
   Downloader(int64_t chat, const std::string& title, int64_t msg, int32_t limit, int32_t direction,
              ClientWrapper* client_ptr);
 
-  virtual ~Downloader() { log_.close(); }
+  virtual ~Downloader() {
+    if (log_.is_open()) {
+      log_.close();
+    }
+  }
 
-  void run() { auto_download(); }
+  void run() { 
+    auto_download();
+    log_.close();
+  }
 
   void process_update(Object& update);
 
@@ -222,6 +229,11 @@ class TdMain : public TdTask {
   void print_msg(td_api::object_ptr<td_api::message>& ptr) {
     std::cout << "msg[" << ptr->id_ << "] :";
     print_msg_content(ptr->content_);
+    if (ptr->forward_info_) {
+      std::cout << " forwarded";
+    } else {
+      std:: cout << " not_forwarded";
+    }
     std::cout << std::endl;
   }
 
