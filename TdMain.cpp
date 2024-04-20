@@ -2,10 +2,12 @@
 
 #include <sstream>
 #include <unordered_map>
+#include <unordered_set>
 
 using namespace task_api;
 
 std::unordered_map<int64_t, std::vector<std::string>> FileNamesLookUp;
+std::unordered_set<int64_t> SuppressedChats;
 
 void replace_char(std::string& s, char c1, char c2) {
   size_t pos = s.find(c1, 0);
@@ -45,6 +47,14 @@ TdMain::TdMain() : TdTask(nullptr) {
       FileNamesLookUp.emplace(std::make_pair(chatId, fileNames));
     }
 
+    f.close();
+  }
+
+  f.open("./msg_suppress.ini");
+  if (f.is_open()) {
+    for(std::int64_t id; f >> id;) {
+      SuppressedChats.insert(id);
+    }
     f.close();
   }
 
@@ -218,6 +228,39 @@ void TdMain::run() {
           std::cout << "No downloader was created so far..." << std::endl;
         }
       }
+      else if (action == "se") {
+        std::int64_t chat_id = 0;
+        std::string query;
+        std::int32_t video_and_photo_only;
+        std::int32_t limit = 100;
+
+        ss >> chat_id;
+        ss >> query;
+        ss >> video_and_photo_only;
+        ss >> limit;
+
+        std::cout << "Searching for messages in chat[" << chat_id
+        << "], title[" << chat_title_[chat_id] << "], query: ["
+        << query << "], video and photo only: " << video_and_photo_only
+        << " limit: " << limit << std::endl;
+
+        send_query(td_api::make_object<td_api::searchChatMessages>(chat_id, query, nullptr, 0, 0, limit > 100 ? 100 : limit,
+                                                                   video_and_photo_only > 0 ? td_api::make_object<td_api::searchMessagesFilterPhotoAndVideo>() : nullptr, 0, 0),
+                   [this](Object object) {
+          if (object->get_id() == td_api::error::ID) {
+            auto&& e = td::move_tl_object_as<td_api::error>(object);
+            std::cout << "Error searching for messages: " << e->message_
+            << std::endl;
+            return;
+          }
+
+          auto results = td_api::move_object_as<td_api::foundChatMessages>(object);
+          std::cout << "Search results: [" << results->messages_.size() << "]"<< std::endl;
+          for (auto it = results->messages_.begin(); it < results->messages_.end(); ++it) {
+            print_msg(*it);
+          }
+        });
+      }
     }
   }
 }
@@ -236,4 +279,48 @@ void TdMain::launch_task(Task* task) {
     }
     task->run();
     }, task));
+}
+
+void TdMain::process_update(Object& update) {
+  td_api::downcast_call(
+    *update,
+    overloaded(
+      [this](td_api::updateNewChat& update_new_chat) {
+        chat_title_[update_new_chat.chat_->id_] =
+          update_new_chat.chat_->title_;
+      },
+      [this](td_api::updateChatTitle& update_chat_title) {
+        chat_title_[update_chat_title.chat_id_] = update_chat_title.title_;
+      },
+        [this](td_api::updateUser& update_user) {
+        auto user_id = update_user.user_->id_;
+        users_[user_id] = std::move(update_user.user_);
+      },
+        [this](td_api::updateNewMessage& update_new_message) {
+          auto chat_id = update_new_message.message_->chat_id_;
+          std::string sender_name;
+          td_api::downcast_call(
+                                *update_new_message.message_->sender_id_,
+                                overloaded(
+                                           [this, &sender_name](td_api::messageSenderUser& user) {
+                                             sender_name = get_user_name(user.user_id_);
+                                           },
+                                           [this, &sender_name](td_api::messageSenderChat& chat) {
+                                             sender_name = get_chat_title(chat.chat_id_);
+                                           }));
+          std::string text;
+          if (update_new_message.message_->content_->get_id() ==
+              td_api::messageText::ID) {
+            text = static_cast<td_api::messageText&>(
+                                                     *update_new_message.message_->content_)
+            .text_->text_;
+          }
+
+          if (SuppressedChats.find(chat_id) == SuppressedChats.end()) {
+            std::cout << "Got message[" << update_new_message.message_->id_
+            << "]: [chat_id:" << chat_id << "] [from:" << sender_name
+            << "] [" << text << "]" << std::endl;
+          }
+      },
+        [](auto& update) {}));
 }
