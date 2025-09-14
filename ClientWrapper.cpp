@@ -175,6 +175,9 @@ void ClientWrapper::on_authorization_state_update() {
               code)),
           create_authentication_query_handler());
       },
+        [this](td_api::authorizationStateWaitPremiumPurchase &) {
+          std::cout << "Telegram Premium Purchase is required" << std::endl;
+      },
         /*          [this](td_api::authorizationStateWaitEncryptionKey&) {
           std::cout << "Enter encryption key or DESTROY: " << std::flush;
           std::string key;

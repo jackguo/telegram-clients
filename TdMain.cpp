@@ -244,8 +244,8 @@ void TdMain::run() {
         << query << "], video and photo only: " << video_and_photo_only
         << " limit: " << limit << std::endl;
 
-        send_query(td_api::make_object<td_api::searchChatMessages>(chat_id, query, nullptr, 0, 0, limit > 100 ? 100 : limit,
-                                                                   video_and_photo_only > 0 ? td_api::make_object<td_api::searchMessagesFilterPhotoAndVideo>() : nullptr, 0, 0),
+        send_query(td_api::make_object<td_api::searchChatMessages>(chat_id, nullptr, query, nullptr, 0, 0, limit > 100 ? 100 : limit,
+                                                                   video_and_photo_only > 0 ? td_api::make_object<td_api::searchMessagesFilterPhotoAndVideo>() : nullptr),
                    [this](Object object) {
           if (object->get_id() == td_api::error::ID) {
             auto&& e = td::move_tl_object_as<td_api::error>(object);

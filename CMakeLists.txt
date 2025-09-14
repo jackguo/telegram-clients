@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.4 FATAL_ERROR)
 
 project(TdDownloader VERSION 1.0 LANGUAGES CXX)
 
-find_package(Td 1.8.26 REQUIRED)
+find_package(Td 1.8.54 REQUIRED)
 
 include_directories(inc)
 add_executable(td_downloader td_downloader.cpp)
